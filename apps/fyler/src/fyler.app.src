@@ -1,0 +1,14 @@
+{application, fyler,
+ [
+  {description, "Fyler: file processing manager with built-in system monitoring"},
+  {vsn, git},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  lager,
+                  cowboy
+                 ]},
+  {mod, { fyler_app, []}},
+  {env, []}
+ ]}.
