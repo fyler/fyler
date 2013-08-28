@@ -2,7 +2,7 @@
  [
   {description, "Fyler: file processing manager with built-in system monitoring"},
   {vsn, git},
-  {registered, []},
+  {registered, [fyler_server]},
   {applications, [
                   kernel,
                   stdlib,

@@ -31,7 +31,7 @@ clean:
 	@$(REBAR) clean
 
 run:
-	ERL_LIBS=apps:..:deps erl -args_file files/vm.args -sasl errlog_type error -sname test_@$(APPNAME) -boot start_sasl -s @$(APPNAME) -embedded -config files/app.config
+	ERL_LIBS=apps:..:deps erl -args_file files/vm.args -sasl errlog_type error -sname test_$(APPNAME) -boot start_sasl -s $(APPNAME) -embedded -config files/app.config
 
 version:
 	echo "VERSION=$(VER)" > version.mk
