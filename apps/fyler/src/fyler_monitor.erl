@@ -58,16 +58,17 @@ monitoring(timeout, State) ->
   print_stats(),
   {next_state,monitoring,State,?TIMEOUT};
 
-monitoring(stop, State) ->
+monitoring(stop_monitor, State) ->
+  print_stats(),
   {next_state,idle,State};
 
 monitoring(_Event, State) ->
   ?D({monitoring, unknown_event, _Event}),
-  {next_state,monitoring,State}.
+  {next_state,monitoring,State,?TIMEOUT}.
 
 monitoring(_Event, _From, State) ->
   ?D({monitoring, unknown_sync_event, _Event}),
-  {reply,undefined,monitoring,State}.
+  {reply,undefined,monitoring,State, ?TIMEOUT}.
 
 
 handle_sync_event(_Event, _From, StateName, State) ->
