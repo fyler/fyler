@@ -82,7 +82,7 @@ handle_info(_Info, StateName, State) ->
   {next_state, StateName, State}.
 
 print_stats() ->
-  [{_, DiskTotal, DiskCap}] = disksup:get_disk_data(),
+  [{_, DiskTotal, DiskCap}|_Rest] = disksup:get_disk_data(),
   {MemTotal, MemAlloc,_} = memsup:get_memory_data(),
   NProcs = cpu_sup:nprocs(),
   CPU = case cpu_sup:util() of
