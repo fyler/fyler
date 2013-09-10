@@ -28,3 +28,8 @@ ebin/
 *.beam
 .eunit
 *.dump
+
+# other repos
+
+apps/http_file/
+apps/ulitos/
