@@ -23,6 +23,7 @@ listener ::pid()
 %% API
 start_link() ->
   ?D({start_monitor}),
+  cpu_sup:util(),
   gen_fsm:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 
@@ -86,10 +87,7 @@ print_stats() ->
   [{_, DiskTotal, DiskCap}|_Rest] = disksup:get_disk_data(),
   {MemTotal, MemAlloc,_} = memsup:get_memory_data(),
   NProcs = cpu_sup:nprocs(),
-  CPU = case cpu_sup:util() of
-          {all, Busy, _, _} -> Busy;
-          _ -> undefined
-        end,
+  CPU = cpu_sup:util(),
   ?D(iolist_to_binary(io_lib:format("Disk data: total ~p, capacity ~p.",[DiskTotal,DiskCap]))),
   ?D(iolist_to_binary(io_lib:format("Memory: total ~p, free ~p.",[MemTotal,MemAlloc]))),
   ?D(iolist_to_binary(io_lib:format("CPU: number of procs ~p, busy ~p%.",[NProcs,CPU]))).
