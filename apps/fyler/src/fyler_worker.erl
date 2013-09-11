@@ -40,7 +40,8 @@ handle_cast(_Request, State) ->
 
 handle_info(download, #state{task = #task{file = #file{url = Path,tmp_path = Tmp} = File} = Task} = State) ->
   Start = ulitos:timestamp(),
-  {Time,Size2} = case http_file:download(Path,[cache_file,Tmp]) of
+  ?D({download_to,Tmp}),
+  {Time,Size2} = case http_file:download(Path,[{cache_file,Tmp}]) of
     {ok,Size} -> DTime =  ulitos:timestamp() - Start,
                  self() ! process_start,
                 {DTime,Size};

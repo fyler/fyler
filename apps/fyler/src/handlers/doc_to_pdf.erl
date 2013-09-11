@@ -7,11 +7,12 @@
 
 -export([run/2]).
 
--define(COMMAND(In), os:cmd("unoconv -f pdf " ++ In)).
+-define(COMMAND(In), "unoconv -f pdf " ++ In).
 
 
 run(#file{tmp_path = Path},_Opts) ->
   Start = ulitos:timestamp(),
+  ?D({"command",?COMMAND(Path)}),
   Data = os:cmd(?COMMAND(Path)),
   ?D({"unoconv conversion: ", Data}),
   {ok,#job_stats{time_spent = ulitos:timestamp() - Start}}.
