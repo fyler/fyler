@@ -6,10 +6,12 @@
 
 -behaviour(gen_server).
 
+-define(TRY_NEXT_TIMEOUT, 1500).
+
 %% API
 -export([start_link/0]).
 
--export([run_task/3]).
+-export([run_task/3, disable/0, enable/0]).
 
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -21,10 +23,11 @@ start_link() ->
 
 %% gen_server callbacks
 -record(state, {
+  enabled = true :: boolean(),
   cowboy_pid :: pid(),
-  listener ::pid(),
+  listener :: pid(),
   storage_dir :: string(),
-  tasks = [] :: list(task()),
+  tasks = queue:new() :: queue(),
   active_tasks = [] :: list(task())
 }).
 
@@ -33,9 +36,9 @@ init(_Args) ->
   Dir = ?Config(storage_dir, "tmp"),
   filelib:ensure_dir(Dir),
 
-  {ok,Http} = start_http_server(),
+  {ok, Http} = start_http_server(),
 
-  {ok,Events} = start_event_listener(),
+  {ok, Events} = start_event_listener(),
 
   {ok, #state{cowboy_pid = Http, listener = Events, storage_dir = Dir}}.
 
@@ -49,22 +52,49 @@ init(_Args) ->
 run_task(URL, Type, Options) ->
   gen_server:call(?MODULE, {run_task, URL, Type, Options}).
 
+%% @doc
+%% Stop running tasks and queue them.
+%% @end
 
-handle_call({run_task, URL, Type, Options}, _From, #state{storage_dir = Dir, tasks = Tasks} = State) ->
+-spec disable() -> ok|false.
+
+disable() ->
+  gen_server:call(?MODULE, {enabled, false}).
+
+%% @doc
+%% Enable running tasks and run tasks from queue.
+%% @end
+
+-spec enable() -> ok|false.
+
+enable() ->
+  gen_server:call(?MODULE, {enabled, true}).
+
+
+handle_call({run_task, URL, Type, Options}, _From, #state{enabled = Enabled, tasks = Tasks, storage_dir = Dir} = State) ->
   case path_to_name_ext(URL) of
-    {Name, Ext} ->
-      TmpName = Dir ++ Name ++ "." ++ Ext,
+    {Name, Ext} -> TmpName = Dir ++ Name ++ "." ++ Ext,
       Task = #task{type = list_to_atom(Type), options = Options, file = #file{extension = Ext, url = URL, name = Name, tmp_path = TmpName}},
-      fyler_monitor:start_monitor(),
-      {ok, Pid} = fyler_sup:start_worker(Task),
-      ?D({worker_sup, Pid}),
-      Ref = erlang:monitor(process,Pid),
-      NewTasks = lists:keystore(Ref,#task.worker,Tasks,Task#task{worker = Ref}),
+      NewTasks = queue:in(Task, Tasks),
+      if Enabled
+        -> self() ! next_task;
+        true -> ok
+      end,
       {reply, ok, State#state{tasks = NewTasks}};
-    _ ->
-      ?D({bad_url, URL}),
+    _ -> ?D({bad_url, URL}),
       {reply, false, State}
   end;
+
+handle_call({enabled, true}, _From, #state{enabled = false} = State) ->
+  self() ! next_task,
+  erlang:send_after(?TRY_NEXT_TIMEOUT,self(),try_next_task),
+  {reply, ok, State#state{enabled = true}};
+
+handle_call({enabled, false}, _From, #state{enabled = true} = State) ->
+  {reply, ok, State#state{enabled = false}};
+
+handle_call({enabled, true}, _From, #state{enabled = true} = State) -> {reply, false, State};
+handle_call({enabled, false}, _From, #state{enabled = false} = State) -> {reply, false, State};
 
 
 handle_call(_Request, _From, State) ->
@@ -75,30 +105,44 @@ handle_cast(_Request, State) ->
   ?D(_Request),
   {noreply, State}.
 
-handle_info({'DOWN',Ref,process,_Pid,normal}, #state{tasks = Tasks} = State) ->
-  NewTasks = case lists:keyfind(Ref,#task.worker,Tasks) of
-              #task{} -> lists:keydelete(Ref,#task.worker,Tasks);
-               _ -> Tasks
-             end,
-  if length(NewTasks) == 0
-    -> ?D(no_more_tasks),
-       fyler_monitor:stop_monitor();
-    true -> ok
-  end,
-  {noreply, State#state{tasks = NewTasks}};
 
-handle_info({'DOWN',Ref,process,_Pid,{failed, Reason}}, #state{tasks = Tasks} = State) ->
-  ?D({job_failed,Reason}),
-  NewTasks = case lists:keyfind(Ref,#task.worker,Tasks) of
-               #task{} -> lists:keydelete(Ref,#task.worker,Tasks);
-               _ -> Tasks
+handle_info(next_task, #state{tasks = Tasks, active_tasks = Active} = State) ->
+  {NewTasks, NewActive} = case queue:out(Tasks) of
+                            {empty, _} -> fyler_monitor:stop_monitor(),
+                              {Tasks, Active};
+                            {{value, Task}, Tasks2} -> fyler_monitor:start_monitor(),
+                              {ok, Pid} = fyler_sup:start_worker(Task),
+                              Ref = erlang:monitor(process, Pid),
+                              Active2 = lists:keystore(Ref, #task.worker, Active, Task#task{worker = Ref}),
+                              {Tasks2, Active2}
+                          end,
+  {noreply, State#state{active_tasks = NewActive, tasks = NewTasks}};
+
+
+handle_info(try_next_task, #state{enabled = false} = State) ->
+  {noreply,State};
+
+handle_info(try_next_task, #state{tasks = Tasks} = State) ->
+  Empty = queue:is_empty(Tasks),
+  if Empty
+    -> ok;
+    true -> self() ! next_task,
+            erlang:send_after(?TRY_NEXT_TIMEOUT,self(),try_next_task)
+  end,
+  {noreply,State};
+
+
+handle_info({'DOWN', Ref, process, _Pid, _Reason}, #state{enabled = Enabled, active_tasks = Active} = State) ->
+  NewActive = case lists:keyfind(Ref, #task.worker, Active) of
+               #task{} -> lists:keydelete(Ref, #task.worker, Active);
+               _ -> Active
              end,
-  if length(NewTasks) == 0
-    -> ?D(no_more_tasks),
-    fyler_monitor:stop_monitor();
+  if Enabled
+    -> self() ! next_task;
     true -> ok
   end,
-  {noreply, State#state{tasks = NewTasks}};
+  {noreply, State#state{active_tasks = NewActive}};
+
 
 handle_info(Info, State) ->
   ?D(Info),
@@ -130,13 +174,13 @@ start_http_server() ->
 start_event_listener() ->
   ?D(start_event_listener),
   Pid = spawn_link(fyler_event_listener, listen, []),
-  {ok,Pid}.
+  {ok, Pid}.
 
 path_to_name_ext(Path) ->
   {ok, Re} = re:compile("[^:]+://.+/([^/]+)\\.([^\\.]+)"),
   case re:run(Path, Re, [{capture, all, list}]) of
     {match, [_, Name, Ext]} ->
-      {Name,Ext};
+      {Name, Ext};
     _ ->
       false
   end.

@@ -31,6 +31,16 @@ handle_event(#fevent{type = failed, task = #task{file = #file{url = Url}, type =
   ?D({task_failed, Type, Url, Error}),
   {ok, State};
 
+handle_event(#fevent{type = cpu_high}, State) ->
+  ?D(cpu_high),
+  fyler_server:disable(),
+  {ok, State};
+
+handle_event(#fevent{type = cpu_available}, State) ->
+  ?D(cpu_available),
+  fyler_server:resume_tasks(),
+  {ok, State};
+
 handle_event(_Event, Pid) ->
   ?D([unknown_event, _Event]),
   {ok, Pid}.

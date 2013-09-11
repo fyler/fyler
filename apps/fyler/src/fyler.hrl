@@ -27,7 +27,7 @@
   time_spent ::non_neg_integer()
 }).
 
--type event_type() ::complete|failed.
+-type event_type() ::complete|failed|cpu_high|cpu_available.
 
 -record(fevent,{
   type ::event_type(),
