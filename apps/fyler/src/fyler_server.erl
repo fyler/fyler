@@ -53,7 +53,7 @@ run_task(URL, Type, Options) ->
 handle_call({run_task, URL, Type, Options}, _From, #state{storage_dir = Dir, tasks = Tasks} = State) ->
   case path_to_name_ext(URL) of
     {Name, Ext} ->
-      TmpName = Dir ++ "/" ++ Name ++ "." ++ Ext,
+      TmpName = Dir ++ Name ++ "." ++ Ext,
       Task = #task{type = list_to_atom(Type), options = Options, file = #file{extension = Ext, url = URL, name = Name, tmp_path = TmpName}},
       fyler_monitor:start_monitor(),
       {ok, Pid} = fyler_sup:start_worker(Task),
