@@ -17,7 +17,7 @@
 
 %% API
 start_link(#task{} = Task) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [Task], []).
+  gen_server:start_link(?MODULE, [Task], []).
 
 %% gen_server callbacks
 -record(state, {
