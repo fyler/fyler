@@ -51,7 +51,7 @@ idle(start_monitor, #state{alarm = true, cpu_max = Max, timeout = T} = State) ->
     true ->
       true
   end,
-  print_stats(),
+  ?D({cpu_busy,CPU}),
   {next_state, monitoring, State#state{alarm = Alarm}, T};
 
 idle(start_monitor, #state{cpu_max = Max, timeout = T} = State) ->
@@ -62,7 +62,7 @@ idle(start_monitor, #state{cpu_max = Max, timeout = T} = State) ->
     true ->
       false
   end,
-  print_stats(),
+  ?D({cpu_busy,CPU}),
   {next_state, monitoring, State#state{alarm = Alarm}, T};
 
 idle(_Event, State) ->
@@ -81,7 +81,7 @@ monitoring(timeout, #state{alarm = false, cpu_max = Max, timeout = T} = State) -
     true ->
       false
   end,
-  print_stats(),
+  ?D({cpu_busy,CPU}),
   {next_state, monitoring, State#state{alarm = Alarm}, T};
 
 monitoring(timeout, #state{cpu_max = Max, timeout = T} = State) ->
@@ -92,11 +92,10 @@ monitoring(timeout, #state{cpu_max = Max, timeout = T} = State) ->
     true ->
       true
   end,
-  print_stats(),
+  ?D({cpu_busy,CPU}),
   {next_state, monitoring, State#state{alarm = Alarm}, T};
 
 monitoring(stop_monitor, State) ->
-  print_stats(),
   {next_state, idle, State};
 
 monitoring(_Event, #state{timeout = T}=State) ->
@@ -118,15 +117,6 @@ handle_event(_Event, StateName, State) ->
 
 handle_info(_Info, StateName, State) ->
   {next_state, StateName, State}.
-
-print_stats() ->
-  % [{_, DiskTotal, DiskCap}|_Rest] = disksup:get_disk_data(),
-  % {MemTotal, MemAlloc,_} = memsup:get_memory_data(),
-  % NProcs = cpu_sup:nprocs(),
-  CPU = cpu_sup:util(),
-  % ?D(iolist_to_binary(io_lib:format("Disk data: total ~p, capacity ~p.",[DiskTotal,DiskCap]))),
-  % ?D(iolist_to_binary(io_lib:format("Memory: total ~p, free ~p.",[MemTotal,MemAlloc]))),
-  ?D(iolist_to_binary(io_lib:format("CPU busy ~p%.", [CPU]))).
 
 terminate(_Reason, _StateName, _State) ->
   ok.

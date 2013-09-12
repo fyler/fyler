@@ -3,7 +3,8 @@
 
 
 main([URL,Type]) ->
-  send(URL,Type).
+  inets:start(),
+  send(URL,Type);
 
 main([]) ->
   {ok, [Host]} = io:fread("Enter host: ", "~s"),

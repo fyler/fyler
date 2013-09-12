@@ -162,6 +162,10 @@ code_change(_OldVsn, State, _Extra) ->
 start_http_server() ->
   Dispatch = cowboy_router:compile([
     {'_', [
+      {"/file/[...]", cowboy_static, [
+        {directory, <<"tmp">>},
+        {mimetypes, {fun mimetypes:path_to_mimes/2, default}}
+      ]},
       {"/", index_handler, []},
       {"/api/tasks", task_handler, []},
       {'_', notfound_handler, []}
@@ -192,7 +196,7 @@ path_to_name_ext(Path) ->
 
 uniqueId() ->
   {Mega,S,Micro} = erlang:now(),
-  integer_to_list(Mega+S+Micro).
+  integer_to_list(Mega*1000000000000+S*1000000+Micro).
 
 
 

@@ -14,8 +14,10 @@ run(#file{tmp_path = Path, name = Name},_Opts) ->
   Start = ulitos:timestamp(),
   ?D({"command",?COMMAND(Path)}),
   Data = os:cmd(?COMMAND(Path)),
-  ?D({"unoconv conversion: ", Data}),
-  {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = Name++".pdf"}}.
+  case Data of
+    [] -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = Name++".pdf"}};
+    Else -> {error, Else}
+  end.
 
 
 
