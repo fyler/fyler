@@ -38,7 +38,7 @@ handle_event(#fevent{type = cpu_high}, State) ->
 
 handle_event(#fevent{type = cpu_available}, State) ->
   ?D(cpu_available),
-  fyler_server:resume_tasks(),
+  fyler_server:enable(),
   {ok, State};
 
 handle_event(_Event, Pid) ->
