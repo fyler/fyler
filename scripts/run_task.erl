@@ -4,11 +4,12 @@
 main([]) ->
 
   {ok, [Host]} = io:fread("Enter host: ", "~s"),
+  {ok, [Task]} = io:fread("Enter task: ", "~s"),
   Line = io:get_line("File names: "),
   Names = string:tokens(string:strip(Line,both,$\n)," "),
   io:format("host ~p, name ~p",[Host,Names]),
   inets:start(),
-  [send(Host++F,"doc_to_pdf") || F <- Names].
+  [send(Host++F,Task) || F <- Names].
 
 send(Path,Type) ->
   Method = post,

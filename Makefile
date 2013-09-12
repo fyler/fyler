@@ -33,6 +33,9 @@ clean:
 run:
 	ERL_LIBS=apps:..:deps erl -args_file files/vm.args -sasl errlog_type error -sname test_$(APPNAME) -boot start_sasl -s $(APPNAME) -embedded -config files/app.config
 
+clean-tmp:
+	cd tmp && ls | xargs rm && cd ..
+
 version:
 	echo "VERSION=$(VER)" > version.mk
 	git add version.mk
