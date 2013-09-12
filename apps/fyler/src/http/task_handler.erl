@@ -13,8 +13,6 @@
 ]).
 
 init({tcp, http}, _Req, _Opts) ->
-  {Method,_} = cowboy_req:method(_Req),
-  ?D({method,Method}),
   {upgrade, protocol, cowboy_rest}.
 
 content_types_accepted(Req, State) ->
@@ -33,7 +31,7 @@ process_post(Req, State) ->
   case cowboy_req:body_qs(Req) of
     {ok, X, _} ->
       case validate_post_data(X) of
-        [Url, Type] -> ?D({post_data, Url, Type}), fyler_server:run_task(Url, Type, []);
+        [Url, Type, Options] -> ?D({post_data, Url, Type}), fyler_server:run_task(Url, Type, Options);
         false -> ?D(<<"wrong post data">>)
       end;
     _ -> ?D(<<"no data">>)
@@ -41,9 +39,12 @@ process_post(Req, State) ->
   {true, Req, State}.
 
 validate_post_data(Data) ->
-  BinData = [proplists:get_value(Key, Data, undefined) || Key <- [<<"url">>, <<"type">>]],
-  Reply = [binary_to_list(X) || X <- BinData, X =/= undefined],
-  if length(Reply) == 2 ->
+  Keys = [<<"url">>, <<"type">>],
+  Opts = [<<"callback">>],
+  BinData = [proplists:get_value(Key, Data, undefined) || Key <- Keys],
+  Options = [{binary_to_atom(Opt,latin1),proplists:get_value(Opt, Data, undefined)} || Opt <- Opts],
+  Reply = [binary_to_list(X) || X <- BinData, X =/= undefined]++[Options],
+  if length(Reply) == length(Keys)+1 ->
     Reply;
     true -> false
   end.

@@ -1,8 +1,11 @@
 #! /usr/local/bin/escript
 %%! -pa ebin
 
-main([]) ->
 
+main([URL,Type]) ->
+  send(URL,Type).
+
+main([]) ->
   {ok, [Host]} = io:fread("Enter host: ", "~s"),
   {ok, [Task]} = io:fread("Enter task: ", "~s"),
   Line = io:get_line("File names: "),

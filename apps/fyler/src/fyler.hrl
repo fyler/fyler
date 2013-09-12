@@ -16,6 +16,7 @@
 -record(task,{
   type ::atom(),
   file ::file(),
+  callback = undefined ::string(),
   worker ::reference(),
   options = []
 }).
@@ -24,7 +25,8 @@
 
 -record(job_stats,{
   download_time ::non_neg_integer(),
-  time_spent ::non_neg_integer()
+  time_spent ::non_neg_integer(),
+  result_path ::string()
 }).
 
 -type event_type() ::complete|failed|cpu_high|cpu_available.

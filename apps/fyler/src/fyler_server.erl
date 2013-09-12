@@ -73,8 +73,11 @@ enable() ->
 
 handle_call({run_task, URL, Type, Options}, _From, #state{enabled = Enabled, tasks = Tasks, storage_dir = Dir} = State) ->
   case path_to_name_ext(URL) of
-    {Name, Ext} -> TmpName = Dir ++ Name ++ "." ++ Ext,
-      Task = #task{type = list_to_atom(Type), options = Options, file = #file{extension = Ext, url = URL, name = Name, tmp_path = TmpName}},
+    {Name, Ext} ->
+      NameId = Name ++ "_" ++ uniqueId(),
+      TmpName = Dir ++ NameId ++ "." ++ Ext,
+      Callback = proplists:get_value(callback,Options,undefined),
+      Task = #task{type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, url = URL, name = NameId, tmp_path = TmpName}},
       NewTasks = queue:in(Task, Tasks),
       if Enabled
         -> self() ! next_task;
@@ -184,6 +187,12 @@ path_to_name_ext(Path) ->
     _ ->
       false
   end.
+
+-spec uniqueId() -> string().
+
+uniqueId() ->
+  {Mega,S,Micro} = erlang:now(),
+  integer_to_list(Mega+S+Micro).
 
 
 
