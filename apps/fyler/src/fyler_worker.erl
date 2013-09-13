@@ -14,6 +14,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
 
+-export([download_strategy/1]).
 
 %% API
 start_link(#task{} = Task) ->
@@ -41,7 +42,7 @@ handle_cast(_Request, State) ->
 handle_info(download, #state{task = #task{file = #file{url = Path,tmp_path = Tmp} = File} = Task} = State) ->
   Start = ulitos:timestamp(),
   ?D({download_to,Tmp}),
-  {Time,Size2} = case http_file:download(Path,[{cache_file,Tmp}]) of
+  {Time,Size2} = case http_file:download(Path,[{cache_file,Tmp},{strategy, fun fyler_worker:download_strategy/1}]) of
     {ok,Size} -> DTime =  ulitos:timestamp() - Start,
                  self() ! process_start,
                 {DTime,Size};
@@ -76,3 +77,12 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+
+
+-spec download_strategy(Size::non_neg_integer()) -> {Chunked::boolean(),Threads::non_neg_integer()}.
+
+download_strategy(Size) when Size > 1024*1024*20 ->
+  {true,2};
+
+download_strategy(_Size) -> {false,0}.
+
