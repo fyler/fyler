@@ -7,6 +7,7 @@
   url ::string(),
   name ::string(),
   dir ::string(),
+  is_aws ::string(),
   extension ::string(),
   size ::non_neg_integer(),
   tmp_path ::string()

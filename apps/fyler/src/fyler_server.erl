@@ -27,20 +27,23 @@ start_link() ->
   cowboy_pid :: pid(),
   listener :: pid(),
   storage_dir :: string(),
+  aws_bucket ::string(),
   tasks = queue:new() :: queue(),
   active_tasks = [] :: list(task())
 }).
 
 init(_Args) ->
   ?D("Starting fyler webserver"),
-  Dir = ?Config(storage_dir, "tmp"),
+  Dir = ?Config(storage_dir, "ff"),
   filelib:ensure_dir(Dir),
 
   {ok, Http} = start_http_server(),
 
   {ok, Events} = start_event_listener(),
 
-  {ok, #state{cowboy_pid = Http, listener = Events, storage_dir = Dir}}.
+  Bucket = ?Config(aws_s3_bucket,undefined),
+
+  {ok, #state{cowboy_pid = Http, listener = Events, storage_dir = Dir, aws_bucket = Bucket}}.
 
 
 %% @doc
@@ -71,14 +74,14 @@ enable() ->
   gen_server:call(?MODULE, {enabled, true}).
 
 
-handle_call({run_task, URL, Type, Options}, _From, #state{enabled = Enabled, tasks = Tasks, storage_dir = Dir} = State) ->
-  case path_to_name_ext(URL) of
-    {Name, Ext} ->
+handle_call({run_task, URL, Type, Options}, _From, #state{enabled = Enabled, tasks = Tasks, storage_dir = Dir, aws_bucket = Bucket} = State) ->
+  case parse_url(URL,Bucket) of
+    {IsAws, Path, Name, Ext} ->
       DirId = Dir ++ Name ++ "_" ++ uniqueId(),
       ok = file:make_dir(DirId),
       TmpName = DirId ++ "/" ++ Name ++ "." ++ Ext,
       Callback = proplists:get_value(callback,Options,undefined),
-      Task = #task{type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, url = URL, name = Name, dir = DirId,  tmp_path = TmpName}},
+      Task = #task{type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, is_aws = IsAws, url = Path, name = Name, dir = DirId,  tmp_path = TmpName}},
       NewTasks = queue:in(Task, Tasks),
       if Enabled
         -> self() ! next_task;
@@ -99,6 +102,10 @@ handle_call({enabled, false}, _From, #state{enabled = true} = State) ->
 
 handle_call({enabled, true}, _From, #state{enabled = true} = State) -> {reply, false, State};
 handle_call({enabled, false}, _From, #state{enabled = false} = State) -> {reply, false, State};
+
+handle_call({move_to_aws, DirName},_From, #state{aws_bucket = Bucket} = State) ->
+  aws_cli:copy_folder(DirName, "s3://"++Bucket++"/"++DirName),
+  {reply,ok,State};
 
 
 handle_call(_Request, _From, State) ->
@@ -212,11 +219,15 @@ start_event_listener() ->
   Pid = spawn_link(fyler_event_listener, listen, []),
   {ok, Pid}.
 
-path_to_name_ext(Path) ->
+parse_url(Path,Bucket) ->
   {ok, Re} = re:compile("[^:]+://.+/([^/]+)\\.([^\\.]+)"),
   case re:run(Path, Re, [{capture, all, list}]) of
     {match, [_, Name, Ext]} ->
-      {Name, Ext};
+      {ok, Re2} = re:compile("[^:]+://s3\\-[^\\.]+\\.amazonaws\\.com/([^/]+)/(.+)"),
+      case re:run(Path,Re2,[{capture,all,list}]) of
+        {match,[_,Bucket,Path2]} ->  {true, Bucket++"/"++Path2, Name, Ext};
+        _ -> {false,Path,Name,Ext}
+      end;
     _ ->
       false
   end.
@@ -235,9 +246,12 @@ uniqueId() ->
 
 
 path_to_test() ->
-  ?assertEqual({"data", "ext"}, path_to_name_ext("http://qwe/data.ext")),
-  ?assertEqual({"cpi", "txt"}, path_to_name_ext("http://dev2.teachbase.ru/app/cpi.txt")),
-  ?assertEqual({"da.ta", "ext"}, path_to_name_ext("http://qwe/qwe/qwr/da.ta.ext")),
-  ?assertEqual(false, path_to_name_ext("qwr/data.ext")).
+  ?assertEqual({false,"http://qwe/data.ext","data", "ext"}, parse_url("http://qwe/data.ext",[])),
+  ?assertEqual({false,"http://dev2.teachbase.ru/app/cpi.txt", "cpi", "txt"}, parse_url("http://dev2.teachbase.ru/app/cpi.txt",[])),
+  ?assertEqual({false, "https://qwe/qwe/qwr/da.ta.ext", "da.ta", "ext"}, parse_url("https://qwe/qwe/qwr/da.ta.ext",[])),
+  ?assertEqual({true, "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/da.ta.ext","qwe")),
+  ?assertEqual({true, "qwe/path/to/object/da.ta.ext","da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext","qwe")),
+  ?assertEqual({false, "http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext","da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext","q")),
+  ?assertEqual(false, parse_url("qwr/data.ext",[])).
 
 -endif.
