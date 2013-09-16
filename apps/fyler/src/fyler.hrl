@@ -6,6 +6,7 @@
 -record(file,{
   url ::string(),
   name ::string(),
+  dir ::string(),
   extension ::string(),
   size ::non_neg_integer(),
   tmp_path ::string()
@@ -28,6 +29,8 @@
   time_spent ::non_neg_integer(),
   result_path ::string()
 }).
+
+-type stats() ::#job_stats{}.
 
 -type event_type() ::complete|failed|cpu_high|cpu_available.
 

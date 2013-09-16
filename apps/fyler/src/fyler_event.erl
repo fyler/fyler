@@ -63,13 +63,15 @@ remove_handler(Handler) ->
 
 
 task_completed(Task, Stats) ->
-  gen_event:notify(?MODULE, #fevent{type = complete,task = Task,stats = Stats}).
+  gen_event:notify(?MODULE, #fevent{type = complete,task = Task,stats = Stats}),
+  fyler_server:send_response(Task,Stats,success).
 
 %% @doc Send when task job is failed.
 %% @end
 
 task_failed(Task, Error) ->
-  gen_event:notify(?MODULE, #fevent{type = failed,task = Task,error = Error}).
+  gen_event:notify(?MODULE, #fevent{type = failed,task = Task,error = Error}),
+  fyler_server:send_response(Task,undefined,failed).
 
 
 init([]) ->

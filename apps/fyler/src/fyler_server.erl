@@ -11,7 +11,7 @@
 %% API
 -export([start_link/0]).
 
--export([run_task/3, disable/0, enable/0]).
+-export([run_task/3, disable/0, enable/0, send_response/3]).
 
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -74,10 +74,11 @@ enable() ->
 handle_call({run_task, URL, Type, Options}, _From, #state{enabled = Enabled, tasks = Tasks, storage_dir = Dir} = State) ->
   case path_to_name_ext(URL) of
     {Name, Ext} ->
-      NameId = Name ++ "_" ++ uniqueId(),
-      TmpName = Dir ++ NameId ++ "." ++ Ext,
+      DirId = Name ++ "_" ++ uniqueId(),
+      ok = file:make_dir(Dir++DirId),
+      TmpName = Dir ++ DirId ++ "/" ++ Name ++ "." ++ Ext,
       Callback = proplists:get_value(callback,Options,undefined),
-      Task = #task{type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, url = URL, name = NameId, tmp_path = TmpName}},
+      Task = #task{type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, url = URL, name = Name, dir = DirId,  tmp_path = TmpName}},
       NewTasks = queue:in(Task, Tasks),
       if Enabled
         -> self() ! next_task;
@@ -135,11 +136,23 @@ handle_info(try_next_task, #state{tasks = Tasks} = State) ->
   {noreply,State};
 
 
-handle_info({'DOWN', Ref, process, _Pid, _Reason}, #state{enabled = Enabled, active_tasks = Active} = State) ->
+handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, active_tasks = Active} = State) ->
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
                #task{} -> lists:keydelete(Ref, #task.worker, Active);
                _ -> Active
              end,
+  if Enabled
+    -> self() ! next_task;
+    true -> ok
+  end,
+  {noreply, State#state{active_tasks = NewActive}};
+
+handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, active_tasks = Active} = State) ->
+  NewActive = case lists:keyfind(Ref, #task.worker, Active) of
+                #task{} = Task ->  fyler_event:task_failed(Task,Other),
+                            lists:keydelete(Ref, #task.worker, Active);
+                _ -> Active
+              end,
   if Enabled
     -> self() ! next_task;
     true -> ok
@@ -157,6 +170,22 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+
+
+%% @doc
+%% Send response to task initiator as HTTP Post with params <code>status = success|failed</code> and <code>path</code - path to download file if success.
+%% @end
+
+-spec send_response(task(),stats(),success|failed) -> ok|list()|binary().
+
+send_response(#task{callback = undefined},_,_) ->
+  ok;
+
+send_response(#task{callback = Callback},#job_stats{result_path = Path},success) ->
+  ibrowse:send_req(Callback,[],post,[{status,ok},{path,Path}],[]);
+
+send_response(#task{callback = Callback},_,failed) ->
+  ibrowse:send_req(Callback,[],post,[{status,failed}],[]).
 
 
 start_http_server() ->

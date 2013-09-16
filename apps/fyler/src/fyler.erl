@@ -4,7 +4,7 @@
 
 -export([start/0, stop/0, upgrade/0, ping/0]).
 
--define(APPS,[crypto,os_mon,lager,ranch,cowlib,cowboy,mimetypes]).
+-define(APPS,[crypto,os_mon,lager,ranch,cowlib,cowboy,mimetypes,ibrowse]).
 
 start() ->
   ulitos_app:ensure_started(?APPS),

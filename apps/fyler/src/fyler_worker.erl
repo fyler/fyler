@@ -67,7 +67,7 @@ handle_info({process_complete, Stats},#state{task = Task, download_time = Time} 
 
 handle_info({error,Reason},#state{task = Task} = State) ->
   fyler_event:task_failed(Task, Reason),
-  {stop, {failed,Reason}, State};
+  {stop, normal, State};
 
 handle_info(_Info, State) ->
   {noreply, State}.
