@@ -45,7 +45,7 @@ handle_info(download, #state{task = #task{file = #file{url = Path, tmp_path = Tm
   ?D({copy_from_aws_to, Tmp}),
   Res = aws_cli:copy_object("s3://" ++ Path, Tmp),
   {Time, Size} = case file:read_file_info(Tmp) of
-                   #file_info{size = Size2} -> DTime = ulitos:timestamp() - Start,
+                   {ok,#file_info{size = Size2}} -> DTime = ulitos:timestamp() - Start,
                      self() ! process_start,
                      {DTime, Size2};
                    _ -> self() ! {error, {download_failed, Res}},
