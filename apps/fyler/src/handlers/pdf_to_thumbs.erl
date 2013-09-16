@@ -18,18 +18,17 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   ?D({"command",?COMMAND(Path,ThumbDir++"/"++Name)}),
   Data = os:cmd(?COMMAND(Path,ThumbDir++"/"++Name)),
   ?D({gs_data,Data}),
-  case filelib:wildcard("*.png",Dir) of
+  case filelib:wildcard("*.png",ThumbDir) of
     [] -> {error,Data};
-    List -> JSON = mochijson2:encode({struct,
+    List -> JSON = jiffy:encode({
                     [
-                      {<<"name">>,Name},
-                      {<<"dir">>,<<"thumbs">>},
-                      {<<"length">>,length(List)},
-                      {<<"thumbs">>,List}
+                      {name,list_to_binary(Name)},
+                      {dir,<<"thumbs">>},
+                      {length,length(List)},
+                      {thumbs,[list_to_binary(T) || T <- List]}
                     ]
-                  }
-            ),
-            JSONFile = Name++".json",
+           } ),
+            JSONFile = Dir ++ "/" ++ Name++".json",
             {ok,F} = file:open(JSONFile,[write]),
             file:write(F,JSON),
             file:close(F),
