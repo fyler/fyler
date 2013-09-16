@@ -13,11 +13,29 @@ run(File) -> run(File,[]).
 
 run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   Start = ulitos:timestamp(),
-  ?D({"command",?COMMAND(Path,Dir++"/"++Name)}),
-  Data = os:cmd(?COMMAND(Path,Dir++"/"++Name)),
+  ThumbDir = Dir++"/thumbs",
+  ok = file:make_dir(ThumbDir),
+  ?D({"command",?COMMAND(Path,ThumbDir++"/"++Name)}),
+  Data = os:cmd(?COMMAND(Path,ThumbDir++"/"++Name)),
   ?D({gs_data,Data}),
-  ?D({thumbs, filelib:wildcard("*.png",Dir)}),
-  {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = Name++".json"}}.
+  case filelib:wildcard("*.png",Dir) of
+    [] -> {error,Data};
+    List -> JSON = mochijson2:encode({struct,
+                    [
+                      {<<"name">>,Name},
+                      {<<"dir">>,<<"thumbs">>},
+                      {<<"length">>,length(List)},
+                      {<<"thumbs">>,List}
+                    ]
+                  }
+            ),
+            JSONFile = Name++".json",
+            {ok,F} = file:open(JSONFile,[write]),
+            file:write(F,JSON),
+            file:close(F),
+            {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = JSONFile}}
+  end.
+
 
 
 

@@ -191,7 +191,7 @@ send_response(#task{callback = Callback},_,failed) ->
 start_http_server() ->
   Dispatch = cowboy_router:compile([
     {'_', [
-      {"/file/[...]", cowboy_static, [
+      {"/tmp/[...]", cowboy_static, [
         {directory, <<"tmp">>},
         {mimetypes, {fun mimetypes:path_to_mimes/2, default}}
       ]},
