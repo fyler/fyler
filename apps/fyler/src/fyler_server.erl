@@ -74,9 +74,9 @@ enable() ->
 handle_call({run_task, URL, Type, Options}, _From, #state{enabled = Enabled, tasks = Tasks, storage_dir = Dir} = State) ->
   case path_to_name_ext(URL) of
     {Name, Ext} ->
-      DirId = Name ++ "_" ++ uniqueId(),
-      ok = file:make_dir(Dir++DirId),
-      TmpName = Dir ++ DirId ++ "/" ++ Name ++ "." ++ Ext,
+      DirId = Dir ++ Name ++ "_" ++ uniqueId(),
+      ok = file:make_dir(DirId),
+      TmpName = DirId ++ "/" ++ Name ++ "." ++ Ext,
       Callback = proplists:get_value(callback,Options,undefined),
       Task = #task{type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, url = URL, name = Name, dir = DirId,  tmp_path = TmpName}},
       NewTasks = queue:in(Task, Tasks),
