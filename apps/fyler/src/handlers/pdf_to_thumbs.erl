@@ -7,7 +7,7 @@
 
 -export([run/1, run/2]).
 
--define(COMMAND(In,OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m  -sOutputFile=\""++OutName++"_%d.png\" -r15 -q \""++In++"\" -c quit").
+-define(COMMAND(In,OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m  -sOutputFile=\""++OutName++"thumb_%d.png\" -r15 -q \""++In++"\" -c quit").
 
 run(File) -> run(File,[]).
 
@@ -15,8 +15,8 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   Start = ulitos:timestamp(),
   ThumbDir = Dir++"/thumbs",
   ok = file:make_dir(ThumbDir),
-  ?D({"command",?COMMAND(Path,ThumbDir++"/"++Name)}),
-  Data = os:cmd(?COMMAND(Path,ThumbDir++"/"++Name)),
+  ?D({"command",?COMMAND(Path,ThumbDir++"/")}),
+  Data = os:cmd(?COMMAND(Path,ThumbDir++"/")),
   ?D({gs_data,Data}),
   case filelib:wildcard("*.png",ThumbDir) of
     [] -> {error,Data};

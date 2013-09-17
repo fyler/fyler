@@ -77,7 +77,7 @@ handle_info(process_start, #state{task = #task{type = Type, file = File, options
   {noreply, State#state{process = Pid}};
 
 handle_info({process_complete, Stats}, #state{task = #task{file = #file{is_aws = true, dir = Dir}} = Task, download_time = Time} = State) ->
-  ok = gen_server:call(fyler_server,{move_to_aws,Dir}),
+  ok = gen_server:call(fyler_server,{move_to_aws,Dir},infinity),
   fyler_event:task_completed(Task, Stats#job_stats{download_time = Time}),
   {stop, normal, State};
 
