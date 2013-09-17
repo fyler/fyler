@@ -7,8 +7,8 @@
 
 -export([run/1, run/2]).
 
--define(COMMAND(In, OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=jpeg  -sOutputFile=\"" ++ OutName ++ "_%d.png\" -r200 -q \"" ++ In ++ "\" -c quit").
--define(COMMAND2(In), "jpegtran -copy none -progressive \"" ++ In ++ "\"").
+-define(COMMAND(In, OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=jpeg  -sOutputFile=\"page_" ++ OutName ++ "_%d.png\" -r200 -q \"" ++ In ++ "\" -c quit").
+-define(COMMAND2(In,Out), "jpegtran -copy none -progressive -outfile \""++Out++"\" \"" ++ In ++ "\"").
 
 run(File) -> run(File, []).
 
@@ -24,13 +24,18 @@ run(#file{tmp_path = Path, name = Name, dir = Dir} = File, _Opts) ->
       case filelib:wildcard("*.jpg", PagesDir) of
         [] -> {error, Data};
         List ->
-          make_progressive_jpeg(List),
+          List2 = case make_progressive_jpeg(PagesDir,List) of
+                    {ok,List_} ->
+                      [file:delete(Dir++"/"++Old) || Old <- List],
+                      List_;
+                    false -> List
+                  end,
           JSON = jiffy:encode({
             [
               {name, list_to_binary(Name)},
               {dir, <<"pages">>},
-              {length, length(List)},
-              {thumbs, [list_to_binary(T) || T <- List]}
+              {length, length(List2)},
+              {thumbs, [list_to_binary(T) || T <- List2]}
             ]
           }),
           JSONFile = Dir ++ "/" ++ Name ++ ".pages.json",
@@ -44,8 +49,12 @@ run(#file{tmp_path = Path, name = Name, dir = Dir} = File, _Opts) ->
 
 
 
-make_progressive_jpeg(List) ->
-  [?COMMAND2(F) || F <- List].
+make_progressive_jpeg(Dir,List) ->
+  _ = [?COMMAND2(Dir++"/"++F,Dir++"/pr_"++F) || F <- List],
+  case filelib:wildcard("pr_*.jpg", Dir) of
+    [] -> ?D({error_converting_to_progressive,Dir}),false;
+    List2 -> {ok,List2}
+  end.
 
 
 
