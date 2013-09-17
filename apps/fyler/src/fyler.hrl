@@ -18,7 +18,7 @@
 -record(task,{
   type ::atom(),
   file ::file(),
-  callback = undefined ::string(),
+  callback = undefined ::binary(),
   worker ::reference(),
   options = []
 }).

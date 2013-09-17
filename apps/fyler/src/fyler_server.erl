@@ -80,6 +80,7 @@ handle_call({run_task, URL, Type, Options}, _From, #state{enabled = Enabled, tas
       DirId = Dir ++ Name ++ "_" ++ uniqueId(),
       ok = file:make_dir(DirId),
       TmpName = DirId ++ "/" ++ Name ++ "." ++ Ext,
+      ?D(Options),
       Callback = proplists:get_value(callback,Options,undefined),
       Task = #task{type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, is_aws = IsAws, url = Path, name = Name, dir = DirId,  tmp_path = TmpName}},
       NewTasks = queue:in(Task, Tasks),
@@ -188,11 +189,12 @@ code_change(_OldVsn, State, _Extra) ->
 send_response(#task{callback = undefined},_,_) ->
   ok;
 
-send_response(#task{callback = Callback},#job_stats{result_path = Path},success) ->
-  ibrowse:send_req(Callback,[],post,[{status,ok},{path,Path}],[]);
+
+send_response(#task{callback = Callback, file=#file{is_aws = AWS}},#job_stats{result_path = Path},success) ->
+  ibrowse:send_req(binary_to_list(Callback),[],post,"status=ok&aws="++AWS++"&data="++jiffy:encode({[{path,Path}]}),[]);
 
 send_response(#task{callback = Callback},_,failed) ->
-  ibrowse:send_req(Callback,[],post,[{status,failed}],[]).
+  ibrowse:send_req(binary_to_list(Callback),[],post,"status=failed",[]).
 
 
 start_http_server() ->
@@ -204,6 +206,7 @@ start_http_server() ->
       ]},
       {"/", index_handler, []},
       {"/api/tasks", task_handler, []},
+      {"/loopback", loopback_handler, []},
       {'_', notfound_handler, []}
     ]}
   ]),
