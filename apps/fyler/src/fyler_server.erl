@@ -43,7 +43,7 @@ init(_Args) ->
 
   Bucket = ?Config(aws_s3_bucket,undefined),
 
-  {ok, #state{cowboy_pid = Http, listener = Events, storage_dir = Dir+"/", aws_bucket = Bucket}}.
+  {ok, #state{cowboy_pid = Http, listener = Events, storage_dir = Dir++"/", aws_bucket = Bucket}}.
 
 
 %% @doc
