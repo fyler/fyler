@@ -37,13 +37,13 @@ init(_Args) ->
   Dir = ?Config(storage_dir, "ff"),
   filelib:ensure_dir(Dir),
 
-  {ok, Http} = start_http_server(),
+  {ok, Http} = start_http_server(Dir),
 
   {ok, Events} = start_event_listener(),
 
   Bucket = ?Config(aws_s3_bucket,undefined),
 
-  {ok, #state{cowboy_pid = Http, listener = Events, storage_dir = Dir, aws_bucket = Bucket}}.
+  {ok, #state{cowboy_pid = Http, listener = Events, storage_dir = Dir+"/", aws_bucket = Bucket}}.
 
 
 %% @doc
@@ -197,11 +197,11 @@ send_response(#task{callback = Callback},_,failed) ->
   ibrowse:send_req(binary_to_list(Callback),[],post,"status=failed",[]).
 
 
-start_http_server() ->
+start_http_server(Dir) ->
   Dispatch = cowboy_router:compile([
     {'_', [
-      {"/tmp/[...]", cowboy_static, [
-        {directory, <<"tmp">>},
+      {"/"++Dir++"/[...]", cowboy_static, [
+        {directory,  list_to_binary(Dir)},
         {mimetypes, {fun mimetypes:path_to_mimes/2, default}}
       ]},
       {"/", index_handler, []},

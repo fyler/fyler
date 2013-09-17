@@ -1,4 +1,4 @@
-%%% @doc Module handling document conversion with unocovn
+%%% @doc Module handling document conversion with unoconv
 %%% @end
 
 -module(doc_to_pdf).
@@ -12,17 +12,13 @@
 
 run(File) -> run(File,[]).
 
-
 run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   Start = ulitos:timestamp(),
   ?D({"command",?COMMAND(Path)}),
   Data = os:cmd(?COMMAND(Path)),
   PDF = Dir ++ "/" ++ Name ++ ".pdf",
   case  filelib:is_file(PDF) of
-    true ->  case pdf_to_thumbs:run(#file{tmp_path = PDF, name = Name, dir = Dir}) of
-              {ok,#job_stats{result_path = Thumbs}} -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(PDF), Thumbs]}};
-              Else -> {error,Else}
-            end;
+    true -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(PDF)]}};
     _ -> {error, Data}
   end.
 
