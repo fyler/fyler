@@ -6,11 +6,14 @@
 -include("fyler.hrl").
 
 %% API
--export([listen/0]).
+-export([listen/0, start_link/0]).
 
 -export([init/1, handle_event/2, handle_call/2, handle_info/2, code_change/3,
   terminate/2]).
 
+start_link() ->
+  Pid = spawn_link(?MODULE, listen, []),
+  {ok, Pid}.
 
 listen() ->
   ?D(listen_task_events),
@@ -23,24 +26,26 @@ init(_Args) ->
   ?D({event_handler_set}),
   {ok,[]}.
 
-handle_event(#fevent{type = complete, task = #task{file = #file{url = Url}, type = Type}, stats = #job_stats{time_spent = Time, download_time = DTime} = Stats}, State) ->
+handle_event(#fevent{type = complete, node = Node, task = #task{file = #file{url = Url}, type = Type} = Task, stats = #job_stats{time_spent = Time, download_time = DTime} = Stats}, State) ->
   ?D({task_complete, Type, Url, {time,Time},{download_time,DTime}}),
   ets:insert(?T_STATS,Stats),
+  fyler_server:send_response(Task,Stats,success),
+  gen_server:cast(fyler_server,{task_finished,Node}),
   {ok, State};
 
-handle_event(#fevent{type = failed, task = #task{file = #file{url = Url}, type = Type}, error = Error, stats = Stats}, State) ->
+handle_event(#fevent{type = failed, node = Node, task = #task{file = #file{url = Url}, type = Type} = Task, error = Error, stats = Stats}, State) ->
   ?D({task_failed, Type, Url, Error}),
   ets:insert(?T_STATS,Stats),
+  fyler_server:send_response(Task,undefined,failed),
+  gen_server:cast(fyler_server,{task_finished,Node}),
   {ok, State};
 
-handle_event(#fevent{type = cpu_high}, State) ->
-  ?D(cpu_high),
-  fyler_server:disable(),
+handle_event(#fevent{type = pool_enabled, node = Node}, State) ->
+  gen_server:cast(fyler_server,{pool_enabled,Node, true}),
   {ok, State};
 
-handle_event(#fevent{type = cpu_available}, State) ->
-  ?D(cpu_available),
-  fyler_server:enable(),
+handle_event(#fevent{type = pool_disabled, node = Node}, State) ->
+  gen_server:cast(fyler_server,{pool_enabled,Node, false}),
   {ok, State};
 
 handle_event(_Event, Pid) ->

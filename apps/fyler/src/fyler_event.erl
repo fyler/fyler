@@ -1,4 +1,8 @@
-%% Copyright
+%%% @doc
+%%% Global event manager
+%%% @end
+
+
 -module(fyler_event).
 -author("palkan").
 
@@ -13,15 +17,15 @@
 %% gen_event callbacks
 -export([init/1, handle_call/2, handle_event/2, handle_info/2, terminate/2, code_change/3]).
 
--export([task_completed/2,task_failed/2]).
+-export([task_completed/2,task_failed/2, pool_enabled/0,pool_disabled/0]).
 
 start_link() ->
   ?D(start_fevent),
-  {ok, Pid} = gen_event:start_link({local, ?MODULE}),
+  {ok, Pid} = gen_event:start_link({global, ?MODULE}),
   {ok, Pid}.
 
 stop_handlers() ->
-  [gen_event:delete_handler(?MODULE, Handler, []) || Handler <- gen_event:which_handlers(?MODULE)].
+  [gen_event:delete_handler({global, ?MODULE}, Handler, []) || Handler <- gen_event:which_handlers({global, ?MODULE})].
 
 %% @doc Dispatch event to listener
 %% @end
@@ -29,7 +33,7 @@ stop_handlers() ->
 -spec notify(any()) -> ok.
 
 notify(Event) ->
-  gen_event:notify(?MODULE, Event).
+  gen_event:notify({global, ?MODULE}, Event).
 
 
 %% @doc
@@ -38,7 +42,7 @@ notify(Event) ->
 -spec add_handler(any(), [any()]) -> ok.
 
 add_handler(Handler, Args) ->
-  gen_event:add_handler(?MODULE, Handler, Args).
+  gen_event:add_handler({global, ?MODULE}, Handler, Args).
 
 
 %% @doc
@@ -47,7 +51,7 @@ add_handler(Handler, Args) ->
 -spec add_sup_handler(any(), [any()]) -> ok.
 
 add_sup_handler(Handler, Args) ->
-  gen_event:add_sup_handler(?MODULE, Handler, Args).
+  gen_event:add_sup_handler({global, ?MODULE}, Handler, Args).
 
 %% @doc
 %% @end
@@ -55,7 +59,7 @@ add_sup_handler(Handler, Args) ->
 -spec remove_handler(any()) -> ok.
 
 remove_handler(Handler) ->
-  gen_event:delete_handler(?MODULE, Handler,[]).
+  gen_event:delete_handler({global, ?MODULE}, Handler,[]).
 
 
 %% @doc Send when task job is finished successfully.
@@ -63,15 +67,26 @@ remove_handler(Handler) ->
 
 
 task_completed(Task, Stats) ->
-  gen_event:notify(?MODULE, #fevent{type = complete,task = Task,stats = Stats}),
-  fyler_server:send_response(Task,Stats,success).
+  gen_event:notify({global, ?MODULE}, #fevent{type = complete, node=node(), task = Task,stats = Stats}).
 
 %% @doc Send when task job is failed.
 %% @end
 
 task_failed(Task, #job_stats{error_msg = Error} = Stats) ->
-  gen_event:notify(?MODULE, #fevent{type = failed,task = Task,error = Error, stats = Stats}),
-  fyler_server:send_response(Task,undefined,failed).
+  gen_event:notify({global, ?MODULE}, #fevent{type = failed,node=node(), task = Task,error = Error, stats = Stats}).
+
+
+%% @doc
+%% @end
+
+pool_enabled() ->
+  gen_event:notify({global, ?MODULE}, #fevent{node=node(), type = pool_enabled}).
+
+%% @doc
+%% @end
+
+pool_disabled() ->
+  gen_event:notify({global, ?MODULE}, #fevent{node=node(), type = pool_disabled}).
 
 
 init([]) ->

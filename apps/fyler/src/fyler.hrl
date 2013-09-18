@@ -46,6 +46,7 @@
 
 -record(fevent,{
   type ::event_type(),
+  node ::atom(),
   task ::task(),
   stats ::stats(),
   error = undefined ::any()

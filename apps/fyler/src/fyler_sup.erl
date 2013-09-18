@@ -3,7 +3,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -33,8 +33,12 @@ start_worker(Task) ->
 stop_worker(Pid) ->
   supervisor:terminate_child(worker_sup,Pid).
 
-start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+start_link(server) ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []);
+
+start_link(pool) ->
+  supervisor:start_link({local, ?MODULE}, ?MODULE, [pool]).
+
 
 %% ===================================================================
 %% Supervisor callbacks
@@ -51,14 +55,22 @@ init([]) ->
     Children = [
       ?CHILD(fyler_event,worker),
       ?CHILD(fyler_server,worker),
-      ?CHILD(fyler_monitor,worker),
-      {worker_sup,
-        {supervisor,start_link,[{local, worker_sup}, ?MODULE, [worker]]},
-        permanent,
-        infinity,
-        supervisor,
-        []
-      }
+      ?CHILD(fyler_event_listener,worker)
     ],
-    {ok, { {one_for_one, 5, 10}, Children} }.
+    {ok, { {one_for_one, 5, 10}, Children} };
+
+init([pool]) ->
+  Children = [
+    ?CHILD(fyler_pool,worker),
+    ?CHILD(fyler_monitor,worker),
+    {worker_sup,
+      {supervisor,start_link,[{local, worker_sup}, ?MODULE, [worker]]},
+      permanent,
+      infinity,
+      supervisor,
+      []
+    }
+  ],
+  {ok, { {one_for_one, 5, 10}, Children} }.
+
 

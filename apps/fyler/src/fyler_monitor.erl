@@ -46,7 +46,7 @@ init(_Args) ->
 idle(start_monitor, #state{alarm = true, cpu_max = Max, timeout = T} = State) ->
   CPU = cpu_sup:util(),
   Alarm = if  CPU < Max ->
-    fyler_event:notify(#fevent{type = cpu_available}),
+    fyler_pool:enable(),
     false;
     true ->
       true
@@ -57,7 +57,7 @@ idle(start_monitor, #state{alarm = true, cpu_max = Max, timeout = T} = State) ->
 idle(start_monitor, #state{cpu_max = Max, timeout = T} = State) ->
   CPU = cpu_sup:util(),
   Alarm = if CPU > Max ->
-    fyler_event:notify(#fevent{type = cpu_high}),
+    fyler_pool:disable(),
     true;
     true ->
       false
@@ -76,7 +76,7 @@ idle(_Event, _From, State) ->
 monitoring(timeout, #state{alarm = false, cpu_max = Max, timeout = T} = State) ->
   CPU = cpu_sup:util(),
   Alarm = if CPU > Max ->
-    fyler_event:notify(#fevent{type = cpu_high}),
+    fyler_pool:disable(),
     true;
     true ->
       false
@@ -87,7 +87,7 @@ monitoring(timeout, #state{alarm = false, cpu_max = Max, timeout = T} = State) -
 monitoring(timeout, #state{cpu_max = Max, timeout = T} = State) ->
   CPU = cpu_sup:util(),
   Alarm = if  CPU < Max ->
-    fyler_event:notify(#fevent{type = cpu_available}),
+    fyler_pool:enable(),
     false;
     true ->
       true

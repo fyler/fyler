@@ -31,5 +31,4 @@ ebin/
 
 # other repos
 
-apps/http_file/
-apps/ulitos/
+apps/fyler/priv/fyler.config

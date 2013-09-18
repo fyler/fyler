@@ -33,8 +33,11 @@ clean:
 dtl:
 	scripts/compile_dtl.erl
 
-run:
-	ERL_LIBS=apps:..:deps erl -args_file files/vm.args -sasl errlog_type error -sname test_$(APPNAME) -boot start_sasl -s $(APPNAME) -embedded -config files/app.config
+run-server:
+	ERL_LIBS=apps:..:deps erl -args_file files/vm.args -sasl errlog_type error -sname fyler_server -boot  start_sasl -s $(APPNAME) -embedded -config files/app.config  -fyler role server
+
+run-pool:
+	ERL_LIBS=apps:..:deps erl -args_file files/vm.args -sasl errlog_type error -sname fyler_pool_$(id) -boot start_sasl -s $(APPNAME) -embedded -config files/app.config  -fyler role pool
 
 clean-tmp:
 	cd tmp && ls | xargs rm && cd ..
