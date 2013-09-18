@@ -23,12 +23,14 @@ init(_Args) ->
   ?D({event_handler_set}),
   {ok,[]}.
 
-handle_event(#fevent{type = complete, task = #task{file = #file{url = Url}, type = Type}, stats = #job_stats{time_spent = Time, download_time = DTime}}, State) ->
+handle_event(#fevent{type = complete, task = #task{file = #file{url = Url}, type = Type}, stats = #job_stats{time_spent = Time, download_time = DTime} = Stats}, State) ->
   ?D({task_complete, Type, Url, {time,Time},{download_time,DTime}}),
+  ets:insert(?T_STATS,Stats),
   {ok, State};
 
-handle_event(#fevent{type = failed, task = #task{file = #file{url = Url}, type = Type}, error = Error}, State) ->
+handle_event(#fevent{type = failed, task = #task{file = #file{url = Url}, type = Type}, error = Error, stats = Stats}, State) ->
   ?D({task_failed, Type, Url, Error}),
+  ets:insert(?T_STATS,Stats),
   {ok, State};
 
 handle_event(#fevent{type = cpu_high}, State) ->

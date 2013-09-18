@@ -25,7 +25,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
                       {name,list_to_binary(Name)},
                       {dir,<<"swfs">>},
                       {length,length(List)},
-                      {thumbs,[list_to_binary(T) || T <- List]}
+                      {slides,[list_to_binary(T) || T <- List]}
                     ]
            } ),
             JSONFile = Dir ++ "/" ++ Name++".swfs.json",

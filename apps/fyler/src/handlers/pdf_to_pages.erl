@@ -35,7 +35,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir} = File, _Opts) ->
               {name, list_to_binary(Name)},
               {dir, <<"pages">>},
               {length, length(List2)},
-              {thumbs, [list_to_binary(T) || T <- List2]}
+              {pages, [list_to_binary(T) || T <- List2]}
             ]
           }),
           JSONFile = Dir ++ "/" ++ Name ++ ".pages.json",

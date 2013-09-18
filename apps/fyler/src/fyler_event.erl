@@ -69,8 +69,8 @@ task_completed(Task, Stats) ->
 %% @doc Send when task job is failed.
 %% @end
 
-task_failed(Task, Error) ->
-  gen_event:notify(?MODULE, #fevent{type = failed,task = Task,error = Error}),
+task_failed(Task, #job_stats{error_msg = Error} = Stats) ->
+  gen_event:notify(?MODULE, #fevent{type = failed,task = Task,error = Error, stats = Stats}),
   fyler_server:send_response(Task,undefined,failed).
 
 

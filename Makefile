@@ -17,7 +17,7 @@ update:
 deps:
 	@$(REBAR) get-deps
 
-compile:
+compile: dtl
 	@$(REBAR) compile
 
 release: clean compile
@@ -29,6 +29,9 @@ test:
 
 clean:
 	@$(REBAR) clean
+
+dtl:
+	scripts/compile_dtl.erl
 
 run:
 	ERL_LIBS=apps:..:deps erl -args_file files/vm.args -sasl errlog_type error -sname test_$(APPNAME) -boot start_sasl -s $(APPNAME) -embedded -config files/app.config

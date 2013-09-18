@@ -1,0 +1,152 @@
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, font, img, ins, kbd, q, s, samp,
+small, strike, strong, sub, sup, tt, var,
+b, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	outline: 0;
+	font-size: 100%;
+	vertical-align: baseline;
+	background: transparent;
+}
+ol, ul {
+	list-style: none;
+}
+blockquote, q {
+	quotes: none;
+}
+:focus {
+	outline: 0;
+}
+ins {
+	text-decoration: none;
+}
+del {
+	text-decoration: line-through;
+}
+table {
+	border-collapse: collapse;
+	border-spacing: 0;
+}
+html {
+	height: 100%;
+}
+header, nav, section, article, aside, footer {
+	display: block;
+}
+body {
+	font: 12px/18px Arial, Tahoma, Verdana, sans-serif;
+	width: 100%;
+	height: 100%;
+}
+a {
+	color: blue;
+	outline: none;
+	text-decoration: underline;
+}
+a:hover {
+	text-decoration: none;
+}
+p {
+	margin: 0 0 18px
+}
+img {
+	border: none;
+}
+input {
+	vertical-align: middle;
+}
+#wrapper {
+	width: 1000px;
+	margin: 0 auto;
+	min-height: 100%;
+	height: auto !important;
+	height: 100%;
+}
+
+
+/* Header
+-----------------------------------------------------------------------------*/
+#header {
+	height: 100px;
+	background: #FFE680;
+}
+
+
+/* Middle
+-----------------------------------------------------------------------------*/
+#content {
+	padding: 0 0 30px;
+}
+
+
+
+
+/* Footer
+-----------------------------------------------------------------------------*/
+#footer {
+	width: 1000px;
+	margin: -30px auto 0;
+	height: 30px;
+	background: #BFF08E;
+	position: relative;
+}
+
+
+#fyler_stats{
+    font-size: 12px;
+    background: #fff;
+    width: 880px;
+    border-collapse: collapse;
+    text-align: left;
+    margin: 20px auto;
+}
+
+
+
+#fyler_stats th {
+    font-size: 14px;
+    font-weight: normal;
+    color: #039;
+    border-bottom: 2px solid #6678b1;
+    padding: 10px 8px;
+}
+
+#fyler_stats td{
+    color: #669;
+    padding: 9px 8px 0;
+}
+
+#fyler_stats th.a, #fyler_stats td.a{
+    width: 100px;
+}
+#fyler_stats th.b, #fyler_stats td.b{
+    width: 60px;
+    text-align: center;
+}
+#fyler_stats th.c, #fyler_stats td.c{
+    width: 60px;
+    text-align: center;
+}
+#fyler_stats th.d, #fyler_stats td.d{
+    width: auto;
+    text-align: center;
+}
+#fyler_stats th.e, #fyler_stats td.e{
+    width: auto;
+    text-align: center;
+}
+#fyler_stats th.f, #fyler_stats td.f{
+    width: auto;
+    text-align: center;
+}
+#fyler_stats th.g, #fyler_stats td.g{
+    width: auto;
+    text-align: right;
+}

@@ -11,7 +11,7 @@
 %% API
 -export([start_link/0]).
 
--export([run_task/3, disable/0, enable/0, send_response/3]).
+-export([run_task/3, clear_stats/0, disable/0, enable/0, send_response/3]).
 
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -37,6 +37,8 @@ init(_Args) ->
   Dir = ?Config(storage_dir, "ff"),
   filelib:ensure_dir(Dir),
 
+  ets:new(?T_STATS, [bag, public, named_table]),
+
   {ok, Http} = start_http_server(Dir),
 
   {ok, Events} = start_event_listener(),
@@ -44,6 +46,16 @@ init(_Args) ->
   Bucket = ?Config(aws_s3_bucket,undefined),
 
   {ok, #state{cowboy_pid = Http, listener = Events, storage_dir = Dir++"/", aws_bucket = Bucket}}.
+
+
+%% @doc
+%% Remove all records from statistics ets.
+%% @end
+
+-spec clear_stats() -> true.
+
+clear_stats() ->
+  ets:delete_all_objects(?T_STATS).
 
 
 %% @doc
@@ -105,8 +117,9 @@ handle_call({enabled, true}, _From, #state{enabled = true} = State) -> {reply, f
 handle_call({enabled, false}, _From, #state{enabled = false} = State) -> {reply, false, State};
 
 handle_call({move_to_aws, DirName},_From, #state{aws_bucket = Bucket} = State) ->
+  Start = ulitos:timestamp(),
   aws_cli:copy_folder(DirName, "s3://"++Bucket++"/"++DirName),
-  {reply,ok,State};
+  {reply,ulitos:timestamp() - Start,State};
 
 
 handle_call(_Request, _From, State) ->
@@ -198,14 +211,27 @@ send_response(#task{callback = Callback},_,failed) ->
 
 
 start_http_server(Dir) ->
+
+  Static = fun(Filetype) ->
+    {lists:append(["/", Filetype, "/[...]"]), cowboy_static, [
+      {directory, {priv_dir, fyler, [list_to_binary(Filetype)]}},
+      {mimetypes, {fun mimetypes:path_to_mimes/2, default}}
+    ]}
+  end,
+
   Dispatch = cowboy_router:compile([
     {'_', [
       {"/"++Dir++"/[...]", cowboy_static, [
         {directory,  list_to_binary(Dir)},
         {mimetypes, {fun mimetypes:path_to_mimes/2, default}}
       ]},
+      Static("css"),
+      Static("js"),
+      Static("img"),
       {"/", index_handler, []},
+      {"/stats", stats_handler, []},
       {"/api/tasks", task_handler, []},
+      {"/api/call/:call", call_handler, []},
       {"/loopback", loopback_handler, []},
       {'_', notfound_handler, []}
     ]}

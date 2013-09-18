@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Fyler</title>
+    <meta name="keywords" content="" />
+    <meta name="description" content="" />
+    <link rel="stylesheet" href="/css/style.css" type="text/css" media="all"/>
+</head>
+<body>
+<div id="wrapper">
+    <header id="header">
+    </header>
+    <div id="content">
+        {% block content %}{% endblock %}
+    </div>
+</div>
+<footer id="footer">
+</footer>
+
+</body>
+</html>

@@ -41,9 +41,9 @@ process_post(Req, State) ->
 validate_post_data(Data) ->
   ?D(Data),
   Keys = [<<"url">>, <<"type">>],
-  Opts = [<<"callback">>],
+  Opts = [<<"callback">>,<<"split">>],
   BinData = [proplists:get_value(Key, Data, undefined) || Key <- Keys],
-  Options = [{binary_to_atom(Opt,latin1),proplists:get_value(Opt, Data, undefined)} || Opt <- Opts],
+  Options = [{binary_to_atom(Opt,latin1),proplists:get_value(Opt, Data)} || Opt <- Opts],
   Reply = [binary_to_list(X) || X <- BinData, X =/= undefined]++[Options],
   if length(Reply) == length(Keys)+1 ->
     Reply;

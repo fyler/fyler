@@ -3,6 +3,8 @@
 
 -define(Config(X,Y),ulitos:get_var(fyler,X,Y)).
 
+-define(T_STATS,fyler_statistics).
+
 -record(file,{
   url ::string(),
   name ::string(),
@@ -26,9 +28,15 @@
 -type task() ::#task{}.
 
 -record(job_stats,{
+  status ::success|failed,
   download_time ::non_neg_integer(),
+  upload_time ::non_neg_integer(),
+  file_size ::non_neg_integer(),
+  file_path ::string(),
   time_spent ::non_neg_integer(),
-  result_path ::string()
+  result_path ::string(),
+  error_msg ::any(),
+  ts ::non_neg_integer()
 }).
 
 -type stats() ::#job_stats{}.
@@ -38,6 +46,6 @@
 -record(fevent,{
   type ::event_type(),
   task ::task(),
-  stats ::#job_stats{},
+  stats ::stats(),
   error = undefined ::any()
 }).
