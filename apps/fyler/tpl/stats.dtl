@@ -5,6 +5,7 @@
     <tr>
         <th scope="col" class="a">Path</th>
         <th scope="col" class="b">Status</th>
+        <th scope="col" class="d">Task</th>
         <th scope="col" class="c">Size</th>
         <th scope="col" class="d">Download time</th>
         <th scope="col" class="e">Process time</th>
@@ -17,6 +18,7 @@
     <tr>
         <td class="a">{{record.file_path}}</td>
         <td class="b">{{record.status}}</td>
+        <td class="d">{{record.task_type}}</td>
         <td class="c">{{record.file_size}}</td>
         <td class="d">{{record.download_time}}</td>
         <td class="e">{{record.time_spent}}</td>

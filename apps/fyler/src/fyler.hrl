@@ -35,6 +35,7 @@
   file_path ::string(),
   time_spent ::non_neg_integer(),
   result_path ::string(),
+  task_type ::atom(),
   error_msg ::any(),
   ts ::non_neg_integer()
 }).

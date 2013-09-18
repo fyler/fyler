@@ -76,17 +76,17 @@ handle_info(process_start, #state{task = #task{type = Type, file = File, options
   end),
   {noreply, State#state{process = Pid}};
 
-handle_info({process_complete, Stats}, #state{task = #task{file = #file{is_aws = true, dir = Dir, url = Path, size = Size}} = Task, download_time = Time} = State) ->
+handle_info({process_complete, Stats}, #state{task = #task{file = #file{is_aws = true, dir = Dir, url = Path, size = Size}, type = Type} = Task, download_time = Time} = State) ->
   UpTime = gen_server:call(fyler_server,{move_to_aws,Dir},infinity),
-  fyler_event:task_completed(Task, Stats#job_stats{download_time = Time, upload_time = UpTime, file_path = Path, file_size = Size, status = success, ts = ulitos:timestamp()}),
+  fyler_event:task_completed(Task, Stats#job_stats{download_time = Time, upload_time = UpTime, file_path = Path, file_size = Size, status = success, task_type = Type, ts = ulitos:timestamp()}),
   {stop, normal, State};
 
-handle_info({process_complete, Stats}, #state{task = #task{file = #file{url = Path, size = Size}}=Task, download_time = Time} = State) ->
-  fyler_event:task_completed(Task, Stats#job_stats{download_time = Time, file_path = Path, file_size = Size, status = success, ts = ulitos:timestamp()}),
+handle_info({process_complete, Stats}, #state{task = #task{file = #file{url = Path, size = Size}, type = Type}=Task, download_time = Time} = State) ->
+  fyler_event:task_completed(Task, Stats#job_stats{download_time = Time, file_path = Path, file_size = Size, status = success, task_type = Type, ts = ulitos:timestamp()}),
   {stop, normal, State};
 
-handle_info({error, Reason}, #state{task = #task{file = #file{url = Path, size = Size}}=Task} = State) ->
-  fyler_event:task_failed(Task, #job_stats{error_msg = Reason, status = failed, ts = ulitos:timestamp(), file_path = Path, file_size = Size}),
+handle_info({error, Reason}, #state{task = #task{file = #file{url = Path, size = Size}, type = Type}=Task} = State) ->
+  fyler_event:task_failed(Task, #job_stats{error_msg = Reason, status = failed, ts = ulitos:timestamp(), task_type = Type, file_path = Path, file_size = Size}),
   {stop, normal, State};
 
 handle_info(_Info, State) ->
