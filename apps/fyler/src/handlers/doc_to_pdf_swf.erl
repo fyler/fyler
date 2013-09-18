@@ -16,7 +16,7 @@ run(#file{name = Name, dir = Dir} = File,Opts) ->
     {ok,#job_stats{result_path = [PDF]}} ->  case pdf_to_thumbs:run(#file{tmp_path = binary_to_list(PDF), name = Name, dir = Dir}) of
               {ok,#job_stats{result_path = Thumbs}} ->
                 case pdf_to_swf:run(#file{tmp_path = binary_to_list(PDF), name = Name, dir = Dir}) of
-                  {ok, #job_stats{result_path = Swf}} -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = PDF++Thumbs++Swf}};
+                  {ok, #job_stats{result_path = Swf}} -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [PDF]++Thumbs++Swf}};
                   Else ->Else
                 end;
               Else -> Else

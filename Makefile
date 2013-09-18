@@ -17,7 +17,7 @@ update:
 deps:
 	@$(REBAR) get-deps
 
-compile: dtl
+compile:
 	@$(REBAR) compile
 
 release: clean compile
@@ -25,7 +25,7 @@ release: clean compile
 	chmod +x @$(APPNAME)/bin/@$(APPNAME)
 
 test:
-    @$(REBAR) skip_deps=true eunit
+	@$(REBAR) skip_deps=true eunit
 
 clean:
 	@$(REBAR) clean
