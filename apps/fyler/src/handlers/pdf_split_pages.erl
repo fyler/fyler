@@ -1,4 +1,4 @@
-%%% @doc Module handling document conversion with unoconv
+%%% @doc Module handling pdf splitting and pages
 %%% @end
 
 -module(pdf_split_pages).

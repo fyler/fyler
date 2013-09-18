@@ -1,4 +1,4 @@
-%%% @doc Module handling document conversion with unoconv
+%%% @doc Module handling document conversion with unoconv  and thumbs generating
 %%% @end
 
 -module(doc_to_pdf_thumbs).

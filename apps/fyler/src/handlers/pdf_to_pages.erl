@@ -1,4 +1,4 @@
-%%% @doc Module handling generating thumbs from pdf
+%%% @doc Module handling generating pages from pdf
 %%% @end
 
 -module(pdf_to_pages).
