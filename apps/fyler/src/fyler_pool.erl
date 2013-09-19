@@ -163,7 +163,8 @@ handle_info(next_task, #state{tasks = Tasks, active_tasks = Active} = State) ->
   {NewTasks, NewActive} = case queue:out(Tasks) of
                             {empty, _} -> fyler_monitor:stop_monitor(),
                               {Tasks, Active};
-                            {{value, Task}, Tasks2} -> fyler_monitor:start_monitor(),
+                            {{value, #task{file=#file{dir = Dir}}=Task}, Tasks2} -> fyler_monitor:start_monitor(),
+                              ok = file:make_dir(Dir),
                               {ok, Pid} = fyler_sup:start_worker(Task),
                               Ref = erlang:monitor(process, Pid),
                               Active2 = lists:keystore(Ref, #task.worker, Active, Task#task{worker = Ref}),
