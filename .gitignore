@@ -32,3 +32,4 @@ ebin/
 # other repos
 
 apps/fyler/priv/fyler.config
+files/vm.args.sample
