@@ -28,4 +28,7 @@
     {% endfor %}
     </tbody>
 </table>
+<script>
+    setTimeout(window.location.reload.bind(window.location),5000);
+</script>
 {% endblock %}

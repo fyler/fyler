@@ -51,3 +51,9 @@
   stats ::stats(),
   error = undefined ::any()
 }).
+
+-record(pool, {
+  node :: atom(),
+  enabled :: boolean(),
+  active_tasks_num :: non_neg_integer()
+}).

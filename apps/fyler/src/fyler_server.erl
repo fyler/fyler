@@ -19,18 +19,11 @@
 %% API
 -export([start_link/0]).
 
--export([run_task/3, clear_stats/0, send_response/3]).
+-export([run_task/3, clear_stats/0, pools/0, send_response/3]).
 
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
   code_change/3]).
-
-
--record(pool, {
-  node :: atom(),
-  enabled :: boolean(),
-  active_tasks_num :: non_neg_integer()
-}).
 
 %% API
 start_link() ->
@@ -77,6 +70,14 @@ clear_stats() ->
 
 
 %% @doc
+%% Return list of pools available
+%% @end
+
+pools() ->
+  gen_server:call(?MODULE,pools).
+
+
+%% @doc
 %% Run new task.
 %% @end
 
@@ -101,6 +102,10 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage
     _ -> ?D({bad_url, URL}),
       {reply, false, State}
   end;
+
+
+handle_call(pools,_From,#state{pools_active = P1, pools_busy = P2} = State) ->
+  {reply,P1++P2,State};
 
 
 handle_call(_Request, _From, State) ->
@@ -228,6 +233,7 @@ start_http_server() ->
       Static("img"),
       {"/", index_handler, []},
       {"/stats", stats_handler, []},
+      {"/pools", pools_handler, []},
       {"/api/tasks", task_handler, []},
       {"/api/call/:call", call_handler, []},
       {"/loopback", loopback_handler, []},

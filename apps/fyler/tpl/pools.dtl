@@ -1,0 +1,24 @@
+{% extends "layout.dtl" %}
+{% block content %}
+<table id="fyler_stats">
+    <thead>
+    <tr>
+        <th scope="col" class="a">Node</th>
+        <th scope="col" class="b">Enabled</th>
+        <th scope="col" class="d">Active tasks</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for record in records %}
+    <tr>
+        <td class="a">{{record.node}}</td>
+        <td class="b">{{record.enabled}}</td>
+        <td class="d">{{record.active_tasks_num}}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+<script>
+     setTimeout(window.location.reload.bind(window.location),5000);
+</script>
+{% endblock %}
