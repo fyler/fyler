@@ -5,8 +5,7 @@
   {registered, [fyler_server,fyler_event,fyler_pool]},
   {applications, [
                   kernel,
-                  stdlib,
-                  lager
+                  stdlib
                  ]},
   {mod, { fyler_app, []}},
   {env, []}

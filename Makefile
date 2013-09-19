@@ -22,7 +22,7 @@ compile:
 
 release: clean compile
 	@$(REBAR) generate force=1
-	chmod +x @$(APPNAME)/bin/@$(APPNAME)
+	chmod +x $(APPNAME)/bin/$(APPNAME)
 
 test:
 	@$(REBAR) skip_deps=true eunit
