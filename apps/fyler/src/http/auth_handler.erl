@@ -24,9 +24,9 @@ process_post(Req, State) ->
     {ok, X, _} ->
       case validate_post_data(X) of
         [Login,Pass] -> case fyler_server:authorize(Login,Pass) of
-                          {ok,Token} -> {ok,Req2} = cowboy_req:reply(200,Req),
-                                        {ok, Req3} = cowboy_req:set_resp_body(jiffy:encode({[{token, list_to_binary(Token)}]}), Req2),
-                                        {halt,Req3,State};
+                          {ok,Token} -> ?D({authorized,Token}),
+                                        {ok, Req2} = cowboy_req:reply(200, [], jiffy:encode({[{token, list_to_binary(Token)}]}), Req),
+                                        {halt,Req2,State};
                           false -> {ok, Req2} = cowboy_req:reply(401, Req),
                                    {halt,Req2,State}
                         end;

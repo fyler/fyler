@@ -86,7 +86,7 @@ authorize(Login, PassHash) ->
   case ?Config(auth_pass, null) of
     null -> gen_server:call(?MODULE, create_session);
     Pass -> L = ?Config(auth_login,none),
-            case crypto:hash(md5, Pass) == PassHash andalso binary_to_list(Login) == L of
+            case ulitos:binary_to_hex(crypto:hash(md5, Pass)) == binary_to_list(PassHash) andalso binary_to_list(Login) == L of
               true -> gen_server:call(?MODULE, create_session);
               _ -> false
             end
@@ -356,10 +356,14 @@ parse_url(Path, Bucket) ->
   {ok, Re} = re:compile("[^:]+://.+/([^/]+)\\.([^\\.]+)"),
   case re:run(Path, Re, [{capture, all, list}]) of
     {match, [_, Name, Ext]} ->
-      {ok, Re2} = re:compile("[^:]+://s3\\-[^\\.]+\\.amazonaws\\.com/([^/]+)/(.+)"),
+      {ok, Re2} = re:compile("[^:]+://"++Bucket++"\\.s3\\.amazonaws\\.com/(.+)"),
       case re:run(Path, Re2, [{capture, all, list}]) of
-        {match, [_, Bucket, Path2]} -> {true, Bucket ++ "/" ++ Path2, Name, Ext};
-        _ -> {false, Path, Name, Ext}
+        {match, [_, Path2]} -> {true, Bucket ++ "/" ++ Path2, Name, Ext};
+        _ ->  {ok, Re3} = re:compile("[^:]+://s3\\-[^\\.]+\\.amazonaws\\.com/([^/]+)/(.+)"),
+              case re:run(Path, Re3, [{capture, all, list}]) of
+                    {match, [_, Bucket, Path2]} -> {true, Bucket ++ "/" ++ Path2, Name, Ext};
+                    _ -> {false, Path, Name, Ext}
+              end
       end;
     _ ->
       false
@@ -383,6 +387,7 @@ path_to_test() ->
   ?assertEqual({false, "http://dev2.teachbase.ru/app/cpi.txt", "cpi", "txt"}, parse_url("http://dev2.teachbase.ru/app/cpi.txt", [])),
   ?assertEqual({false, "https://qwe/qwe/qwr/da.ta.ext", "da.ta", "ext"}, parse_url("https://qwe/qwe/qwr/da.ta.ext", [])),
   ?assertEqual({true, "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/da.ta.ext", "qwe")),
+  ?assertEqual({true, "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3.amazonaws.com/da.ta.ext", "qwe")),
   ?assertEqual({true, "qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "qwe")),
   ?assertEqual({false, "http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "q")),
   ?assertEqual(false, parse_url("qwr/data.ext", [])).
@@ -452,21 +457,21 @@ stop_server_(_) ->
 
 
 add_session_t_() ->
-  P = crypto:hash(md5,?Config(auth_pass,"")),
-  ?_assertMatch({ok,_},fyler_server:authorize(list_to_binary(?Config(auth_login,"")),P)).
+  P = ulitos:binary_to_hex(crypto:hash(md5,?Config(auth_pass,""))),
+  ?_assertMatch({ok,_},fyler_server:authorize(list_to_binary(?Config(auth_login,"")),list_to_binary(P))).
 
 
 wrong_login_t_() ->
-  P = crypto:hash(md5,?Config(auth_pass,"")),
-  ?_assertEqual(false,fyler_server:authorize(<<"badlogin">>,P)).
+  P = ulitos:binary_to_hex(crypto:hash(md5,?Config(auth_pass,""))),
+  ?_assertEqual(false,fyler_server:authorize(<<"badlogin">>,list_to_binary(P))).
 
 wrong_pass_t_() ->
-  P = crypto:hash(md5,"wqe"),
-  ?_assertEqual(false,fyler_server:authorize(?Config(auth_login,""),P)).
+  P = ulitos:binary_to_hex(crypto:hash(md5,"wqe")),
+  ?_assertEqual(false,fyler_server:authorize(?Config(auth_login,""),list_to_binary(P))).
 
 is_authorized_t_() ->
-  P = crypto:hash(md5,?Config(auth_pass,"")),
-  {ok,Token} = fyler_server:authorize(list_to_binary(?Config(auth_login,"")),P),
+  P = ulitos:binary_to_hex(crypto:hash(md5,?Config(auth_pass,""))),
+  {ok,Token} = fyler_server:authorize(list_to_binary(?Config(auth_login,"")),list_to_binary(P)),
   ?_assertEqual(true,fyler_server:is_authorized(list_to_binary(Token))).
 
 is_authorized_failed_t_() ->
