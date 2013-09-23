@@ -20,7 +20,7 @@ is_authorized(Req,State) ->
   Reply = case cowboy_req:body_qs(Req) of
     {ok, X, _} -> case proplists:get_value(<<"fkey">>,X) of
                     undefined -> false;
-                    Key -> fyler_server:is_authorized(binary_to_list(Key))
+                    Key -> fyler_server:is_authorized(Key)
                   end;
             _ -> false
               end,
