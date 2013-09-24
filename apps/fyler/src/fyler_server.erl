@@ -273,13 +273,13 @@ send_response(#task{callback = undefined}, _, _) ->
   ok;
 
 send_response(#task{callback = Callback, file = #file{is_aws = true, bucket = Bucket}}, #job_stats{result_path = Path}, success) ->
-  ibrowse:send_req(binary_to_list(Callback), [], post, "status=ok&aws=true&bucket="++Bucket++"data=" ++ jiffy:encode({[{path, Path}]}), []);
+  ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=true&bucket="++Bucket++"data=" ++ jiffy:encode({[{path, Path}]}), []);
 
 send_response(#task{callback = Callback, file = #file{is_aws = false}}, #job_stats{result_path = Path}, success) ->
-  ibrowse:send_req(binary_to_list(Callback), [], post, "status=ok&aws=false&data=" ++ jiffy:encode({[{path, Path}]}), []);
+  ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=false&data=" ++ jiffy:encode({[{path, Path}]}), []);
 
 send_response(#task{callback = Callback}, _, failed) ->
-  ?D(ibrowse:send_req(binary_to_list(Callback), [], post, "status=failed", [])).
+  ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=failed", []).
 
 
 start_http_server() ->
