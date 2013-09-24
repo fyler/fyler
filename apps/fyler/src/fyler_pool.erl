@@ -39,9 +39,10 @@ start_link() ->
 init(_Args) ->
   net_kernel:monitor_nodes(true),
   ulitos_app:ensure_started(?APPS),
-  ?D("Starting fyler webserver"),
+  ?D("Starting fyler pool"),
   Dir = ?Config(storage_dir, "ff"),
-  filelib:ensure_dir(Dir),
+  ok = filelib:ensure_dir(Dir),
+  ok = file:make_dir(Dir),
   Bucket = ?Config(aws_s3_bucket, undefined),
 
   Server = ?Config(server_name,null),
@@ -219,8 +220,13 @@ handle_info(Info, State) ->
   ?D(Info),
   {noreply, State}.
 
+terminate(shutdown, _State) ->
+  ok;
+
+
 terminate(_Reason, _State) ->
   ?D(_Reason),
+  fyler_monitor:stop_monitor(),
   ok.
 
 code_change(_OldVsn, State, _Extra) ->
