@@ -42,7 +42,10 @@ init(_Args) ->
   ?D("Starting fyler pool"),
   Dir = ?Config(storage_dir, "ff"),
   ok = filelib:ensure_dir(Dir),
-  ok = file:make_dir(Dir),
+  case file:make_dir(Dir) of
+    ok -> ok;
+    {error,eexist} -> ok
+  end,
   Bucket = ?Config(aws_s3_bucket, undefined),
 
   Server = ?Config(server_name,null),

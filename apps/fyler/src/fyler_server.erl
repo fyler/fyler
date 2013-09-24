@@ -137,7 +137,7 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage
       TmpName = DirId ++ "/" ++ Name ++ "." ++ Ext,
       ?D(Options),
       Callback = proplists:get_value(callback, Options, undefined),
-      Task = #task{type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, is_aws = IsAws, url = Path, name = Name, dir = DirId, tmp_path = TmpName}},
+      Task = #task{type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, bucket = Bucket, is_aws = IsAws, url = Path, name = Name, dir = DirId, tmp_path = TmpName}},
       NewTasks = queue:in(Task, Tasks),
 
       self() ! try_next_task,
@@ -272,9 +272,11 @@ code_change(_OldVsn, State, _Extra) ->
 send_response(#task{callback = undefined}, _, _) ->
   ok;
 
+send_response(#task{callback = Callback, file = #file{is_aws = true, bucket = Bucket}}, #job_stats{result_path = Path}, success) ->
+  ibrowse:send_req(binary_to_list(Callback), [], post, "status=ok&aws=true&bucket="++Bucket++"data=" ++ jiffy:encode({[{path, Path}]}), []);
 
-send_response(#task{callback = Callback, file = #file{is_aws = AWS}}, #job_stats{result_path = Path}, success) ->
-  ibrowse:send_req(binary_to_list(Callback), [], post, "status=ok&aws=" ++ atom_to_list(AWS) ++ "&data=" ++ jiffy:encode({[{path, Path}]}), []);
+send_response(#task{callback = Callback, file = #file{is_aws = false}}, #job_stats{result_path = Path}, success) ->
+  ibrowse:send_req(binary_to_list(Callback), [], post, "status=ok&aws=false&data=" ++ jiffy:encode({[{path, Path}]}), []);
 
 send_response(#task{callback = Callback}, _, failed) ->
   ibrowse:send_req(binary_to_list(Callback), [], post, "status=failed", []).
