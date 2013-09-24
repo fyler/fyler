@@ -279,7 +279,7 @@ send_response(#task{callback = Callback, file = #file{is_aws = false}}, #job_sta
   ibrowse:send_req(binary_to_list(Callback), [], post, "status=ok&aws=false&data=" ++ jiffy:encode({[{path, Path}]}), []);
 
 send_response(#task{callback = Callback}, _, failed) ->
-  ibrowse:send_req(binary_to_list(Callback), [], post, "status=failed", []).
+  ?D(ibrowse:send_req(binary_to_list(Callback), [], post, "status=failed", [])).
 
 
 start_http_server() ->
