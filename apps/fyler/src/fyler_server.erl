@@ -172,21 +172,21 @@ handle_call(_Request, _From, State) ->
   {reply, unknown, State}.
 
 
-handle_cast({pool_enabled, Node, true}, #state{pools_busy = Pools} = State) ->
+handle_cast({pool_enabled, Node, true}, #state{pools_busy = Pools, pools_active = Active} = State) ->
   ?D({pool_enabled, Node}),
   case lists:keyfind(Node, #pool.node, Pools) of
     #pool{} = Pool ->
       self() ! try_next_task,
-      {noreply, State#state{pools_busy = lists:keystore(Node, #pool.node, Pools, Pool#pool{enabled = true})}};
+      {noreply, State#state{pools_busy = lists:keydelete(Node, #pool.node, Pools), pools_active = lists:keystore(Node, #pool.node, Active, Pool#pool{enabled = true})}};
     _ -> {noreply, State}
   end;
 
 
-handle_cast({pool_enabled, Node, false}, #state{pools_active = Pools} = State) ->
+handle_cast({pool_enabled, Node, false}, #state{pools_active = Pools, pools_busy = Busy} = State) ->
   ?D({pool_disabled, Node}),
   case lists:keyfind(Node, #pool.node, Pools) of
     #pool{} = Pool ->
-      {noreply, State#state{pools_active = lists:keystore(Node, #pool.node, Pools, Pool#pool{enabled = false})}};
+      {noreply, State#state{pools_active = lists:keydelete(Node, #pool.node, Pools), pools_busy = lists:keystore(Node, #pool.node, Busy, Pool#pool{enabled = false})}};
     _ -> {noreply, State}
   end;
 
