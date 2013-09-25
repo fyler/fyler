@@ -235,9 +235,9 @@ handle_info(try_next_task, #state{tasks = Tasks, pools_active = Pools} = State) 
   {NewTasks, NewPools} = case queue:out(Tasks) of
                            {empty, _} -> ?D(no_more_tasks),
                              {Tasks, Pools};
-                           {{value, Task}, Tasks2} -> #pool{node = Node, active_tasks_num = Num} = Pool = choose_pool(Pools),
+                           {{value, Task}, Tasks2} -> #pool{node = Node, active_tasks_num = Num, total_tasks = Total} = Pool = choose_pool(Pools),
                              rpc:cast(Node, fyler_pool, run_task, [Task]),
-                             {Tasks2, lists:keystore(Node, #pool.node, Pools, Pool#pool{active_tasks_num = Num + 1})}
+                             {Tasks2, lists:keystore(Node, #pool.node, Pools, Pool#pool{active_tasks_num = Num + 1, total_tasks = Total + 1})}
                          end,
   Empty = queue:is_empty(NewTasks),
   if Empty
