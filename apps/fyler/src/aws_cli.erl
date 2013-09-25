@@ -14,11 +14,11 @@
 
 copy_object(From,To) ->
   ?D({aws_command,"aws s3 cp "++From++" "++To}),
-  os:cmd("aws s3 cp "++From++" "++To).
+  os:cmd("aws s3 cp --acl public-read "++From++" "++To).
 
 %% @doc
 %% @end
 -spec copy_folder(string(),string()) ->  any().
 
 copy_folder(From,To) ->
-  os:cmd("aws s3 sync "++From++" "++To).
+  os:cmd("aws s3 sync  --acl public-read "++From++" "++To).
