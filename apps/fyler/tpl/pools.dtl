@@ -6,6 +6,7 @@
         <th scope="col" class="a">Node</th>
         <th scope="col" class="b">Enabled</th>
         <th scope="col" class="d">Active tasks</th>
+        <th scope="col" class="d">Total tasks</th>
     </tr>
     </thead>
     <tbody>
@@ -14,6 +15,7 @@
         <td class="a">{{record.node}}</td>
         <td class="b">{{record.enabled}}</td>
         <td class="d">{{record.active_tasks_num}}</td>
+        <td class="d">{{record.total_tasks}}</td>
     </tr>
     {% endfor %}
     </tbody>

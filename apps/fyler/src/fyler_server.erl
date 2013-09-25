@@ -208,6 +208,7 @@ handle_info({session_expired, Token}, State) ->
 handle_info({pool_connected, Node, true, Num}, #state{pools_active = Pools} = State) ->
   NewPools = lists:keystore(Node, #pool.node, Pools, #pool{node = Node, active_tasks_num = Num, enabled = true}),
   {fyler_pool, Node} ! pool_accepted,
+  self() ! try_next_task,
   {noreply, State#state{pools_active = NewPools}};
 
 handle_info({pool_connected, Node, false, Num}, #state{pools_busy = Pools} = State) ->
@@ -224,6 +225,11 @@ handle_info(try_next_task, #state{pools_active = [], tasks = Tasks} = State) whe
   ?D({<<"Queue is too big, start new instance">>, length(Tasks)}),
   %%todo:
   {noreply, State};
+
+
+handle_info(try_next_task, #state{pools_active = Pools,busy_timer_ref = Ref}=State) when Ref /= undefined andalso length(Pools)>0  ->
+  erlang:cancel_timer(Ref),
+  handle_info(try_next_task,State#state{busy_timer_ref = undefined});
 
 handle_info(try_next_task, #state{tasks = Tasks, pools_active = Pools} = State) ->
   {NewTasks, NewPools} = case queue:out(Tasks) of

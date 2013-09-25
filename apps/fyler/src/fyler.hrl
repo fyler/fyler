@@ -56,5 +56,6 @@
 -record(pool, {
   node :: atom(),
   enabled :: boolean(),
-  active_tasks_num :: non_neg_integer()
+  active_tasks_num =0 :: non_neg_integer(),
+  total_tasks = 0 ::non_neg_integer()
 }).
