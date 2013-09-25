@@ -1,4 +1,4 @@
-%%% @doc Module handling document conversion with unoconv  and thumbs generating
+%%% @doc Module handling document conversion with unoconv, swf and thumbs generation
 %%% @end
 
 -module(doc_to_pdf_swf).
@@ -13,12 +13,9 @@ run(File) -> run(File,[]).
 run(#file{name = Name, dir = Dir} = File,Opts) ->
   Start = ulitos:timestamp(),
   case  doc_to_pdf:run(File,Opts) of
-    {ok,#job_stats{result_path = [PDF]}} ->  case pdf_to_thumbs:run(#file{tmp_path = binary_to_list(PDF), name = Name, dir = Dir}) of
-              {ok,#job_stats{result_path = Thumbs}} ->
-                case pdf_to_swf:run(#file{tmp_path = binary_to_list(PDF), name = Name, dir = Dir}) of
-                  {ok, #job_stats{result_path = Swf}} -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [PDF]++Thumbs++Swf}};
-                  Else ->Else
-                end;
+    {ok,#job_stats{result_path = [PDF|_Rest]}} ->  case pdf_to_swf_thumbs:run(#file{tmp_path = binary_to_list(PDF), name = Name, dir = Dir}) of
+              {ok,#job_stats{result_path = SwfThumbs}} ->
+                  {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [PDF]++SwfThumbs}};
               Else -> Else
             end;
     Else -> Else

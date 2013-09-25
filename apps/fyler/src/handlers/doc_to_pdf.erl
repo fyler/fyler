@@ -18,7 +18,11 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   Data = os:cmd(?COMMAND(Path)),
   PDF = Dir ++ "/" ++ Name ++ ".pdf",
   case  filelib:is_file(PDF) of
-    true -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(PDF)]}};
+    true -> case pdf_thumb:run(#file{tmp_path = PDF, name = Name, dir = Dir}) of
+              {ok,#job_stats{result_path = Thumb}} ->
+                    {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(PDF)|Thumb]}};
+              Else -> Else
+            end;
     _ -> {error, Data}
   end.
 
