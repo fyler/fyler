@@ -25,13 +25,16 @@ release: clean compile
 	chmod +x $(APPNAME)/bin/$(APPNAME)
 
 test:
-	@$(REBAR) skip_deps=true eunit
+	@$(REBAR) skip_deps=true eunit apps=fyler
 
 clean:
 	@$(REBAR) clean
 
 dtl:
 	scripts/compile_dtl.erl
+
+handlers:
+	scripts/gen_handlers_list.erl
 
 run-server:
 	ERL_LIBS=apps:..:deps erl -args_file files/vm.args.sample -sasl errlog_type error -boot  start_sasl -s $(APPNAME) -embedded -config files/app.config  -fyler role server

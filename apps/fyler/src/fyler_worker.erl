@@ -68,12 +68,17 @@ handle_info(download, #state{task = #task{file = #file{url = Path, tmp_path = Tm
 
 handle_info(process_start, #state{task = #task{type = Type, file = File, options = Opts}} = State) ->
   Self = self(),
-  Pid = spawn_link(fun() ->
-    case erlang:apply(Type, run, [File, Opts]) of
-      {ok, Stats} -> Self ! {process_complete, Stats};
-      {error, Reason} -> Self ! {error, Reason}
-    end
-  end),
+  Pid = case erlang:function_exported(Type,run,2) of
+    true ->
+    spawn_link(fun() ->
+      case erlang:apply(Type, run, [File, Opts]) of
+        {ok, Stats} -> Self ! {process_complete, Stats};
+        {error, Reason} -> Self ! {error, Reason}
+      end
+    end);
+    false -> self() ! {error, function_not_found},
+             undefined
+   end,
   {noreply, State#state{process = Pid}};
 
 handle_info({process_complete, Stats}, #state{task = #task{file = #file{is_aws = true, dir = Dir, url = Path, size = Size}, type = Type} = Task, download_time = Time} = State) ->

@@ -2,12 +2,14 @@
 -module(fyler_pool).
 -author("palkan").
 -include("../include/log.hrl").
+-include("../include/handlers.hrl").
 -include("fyler.hrl").
 
 -behaviour(gen_server).
 
 -define(TRY_NEXT_TIMEOUT, 1500).
 -define(POLL_SERVER_TIMEOUT, 30000).
+
 
 -define(APPS, [os_mon]).
 
@@ -53,6 +55,8 @@ init(_Args) ->
   ?D({server,Server}),
 
   self() ! connect_to_server,
+
+  ulitos_app:ensure_loaded(?Handlers),
 
   {ok, #state{storage_dir = Dir ++ "/", aws_bucket = Bucket, server_node = Server}}.
 
