@@ -120,11 +120,15 @@ handle_call({enabled, false}, _From, #state{enabled = true,connected = Connected
 handle_call({enabled, true}, _From, #state{enabled = true} = State) -> {reply, false, State};
 handle_call({enabled, false}, _From, #state{enabled = false} = State) -> {reply, false, State};
 
-handle_call({move_to_aws, DirName}, _From, #state{aws_bucket = Bucket} = State) ->
+handle_call({move_to_aws, DirName, []}, _From, #state{aws_bucket = Bucket} = State) ->
   Start = ulitos:timestamp(),
   aws_cli:copy_folder(DirName, "s3://" ++ Bucket ++ "/" ++ DirName),
   {reply, ulitos:timestamp() - Start, State};
 
+handle_call({move_to_aws, DirName,TargetDir}, _From, #state{aws_bucket = Bucket} = State) ->
+  Start = ulitos:timestamp(),
+  aws_cli:copy_folder(DirName, "s3://" ++ Bucket ++ "/" ++ TargetDir),
+  {reply, ulitos:timestamp() - Start, State};
 
 handle_call(_Request, _From, State) ->
   ?D(_Request),

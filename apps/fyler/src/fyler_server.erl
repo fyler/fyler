@@ -133,11 +133,12 @@ run_task(URL, Type, Options) ->
 handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage_dir = Dir, aws_bucket = Bucket} = State) ->
   case parse_url(URL, Bucket) of
     {IsAws, Path, Name, Ext} ->
-      DirId = Dir ++ Name ++ "_" ++ uniqueId(),
+      DirId = + uniqueId() ++ "_" ++ Dir ++ Name,
       TmpName = DirId ++ "/" ++ Name ++ "." ++ Ext,
       ?D(Options),
       Callback = proplists:get_value(callback, Options, undefined),
-      Task = #task{type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, bucket = Bucket, is_aws = IsAws, url = Path, name = Name, dir = DirId, tmp_path = TmpName}},
+      TargetDir = binary_to_list(proplists:get_value(target_dir, Options, <<"">>)),
+      Task = #task{type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = IsAws, url = Path, name = Name, dir = DirId, tmp_path = TmpName}},
       NewTasks = queue:in(Task, Tasks),
 
       self() ! try_next_task,

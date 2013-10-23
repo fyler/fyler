@@ -13,7 +13,8 @@
   bucket ::string(),
   extension ::string(),
   size ::non_neg_integer(),
-  tmp_path ::string()
+  tmp_path ::string(),
+  target_dir = [] ::list()
 }).
 
 -type file() ::#file{}.
