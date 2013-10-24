@@ -14,7 +14,7 @@ run(File) -> run(File,[]).
 
 run(#file{tmp_path = Path, name = Name, dir = Dir, target_dir = Target},_Opts) ->
   Start = ulitos:timestamp(),
-  M3U = Dir++Name++".m3u8",
+  M3U = Dir++"/"++Name++".m3u8",
   ?D({"command",?COMMAND(Path,M3U)}),
   Data = os:cmd(?COMMAND(Path,M3U)),
   case filelib:wildcard("*.ts",Dir) of

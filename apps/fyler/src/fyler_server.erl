@@ -43,6 +43,7 @@
   cowboy_pid :: pid(),
   storage_dir :: string(),
   aws_bucket :: string(),
+  aws_dir ::string(),
   pools_active = [] :: list(),
   pools_busy = [] :: list(),
   busy_timer_ref = undefined,
@@ -73,7 +74,7 @@ init(_Args) ->
 
   Bucket = ?Config(aws_s3_bucket, undefined),
 
-  {ok, #state{cowboy_pid = Http, storage_dir = Dir ++ "/", aws_bucket = Bucket}}.
+  {ok, #state{cowboy_pid = Http, storage_dir = Dir, aws_bucket = Bucket, aws_dir = ?Config(aws_dir,"fyler/")}}.
 
 
 %% @doc
@@ -144,15 +145,16 @@ run_task(URL, Type, Options) ->
   gen_server:call(?MODULE, {run_task, URL, Type, Options}).
 
 
-handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage_dir = Dir, aws_bucket = Bucket, tasks_count = TCount} = State) ->
+handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage_dir = Dir, aws_bucket = Bucket, aws_dir = AwsDir, tasks_count = TCount} = State) ->
   case parse_url(URL, Bucket) of
     {IsAws, Path, Name, Ext} ->
-      DirId = Dir ++ uniqueId() ++ "_" ++ Name,
+      UniqueDir = uniqueId() ++ "_" ++ Name,
+      DirId = Dir ++ UniqueDir,
       TmpName = DirId ++ "/" ++ Name ++ "." ++ Ext,
       ?D(Options),
       Callback = proplists:get_value(callback, Options, undefined),
       TargetDir = case proplists:get_value(target_dir, Options) of
-                    undefined -> [];
+                    undefined -> AwsDir++UniqueDir;
                     TargetDir_  -> binary_to_list(TargetDir_)
                   end,
       Task = #task{id=TCount, type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = IsAws, url = Path, name = Name, dir = DirId, tmp_path = TmpName}},

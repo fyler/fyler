@@ -1,8 +1,9 @@
 {role, server}.
 {server_name, fyler@domain.com}.
-{storage_dir,"ff"}.
+{storage_dir,"ff/"}.
 {http_port,8008}.
 {aws_s3_bucket, "tbconvert"}.
+{aws_dir,"ff/"}.
 {pg_host,"127.0.0.1"}.
 {pg_db,"fyler"}.
 {pg_user,"fyler"}.
