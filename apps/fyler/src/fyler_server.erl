@@ -171,7 +171,7 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage
       TargetDir = case proplists:get_value(target_dir, Options) of
                     undefined -> AwsDir ++ UniqueDir;
                     TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Bucket) of
-                                    {true, Path} -> Path;
+                                    {true, TargetPath} -> TargetPath;
                                     _ -> ?D(wrong_target_dir), AwsDir ++ UniqueDir
                                   end
                   end,
@@ -454,6 +454,12 @@ path_to_test() ->
   ?assertEqual({true, "qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "qwe")),
   ?assertEqual({false, "http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "q")),
   ?assertEqual(false, parse_url("qwr/data.ext", [])).
+
+
+dir_url_test() ->
+  ?assertEqual({true,"recordings/2/record_17/stream_1/"},parse_url_dir("https://devtbupload.s3.amazonaws.com/recordings/2/record_17/stream_1/","devtbupload")),
+  ?assertEqual({true,"recordings/2/record_17/stream_1/"},parse_url_dir("http://s3-eu-west-1.amazonaws.com/devtbupload/recordings/2/record_17/stream_1/","devtbupload")),
+  ?assertEqual({false,"https://2.com/record_17/stream_1/"},parse_url_dir("https://2.com/record_17/stream_1/","devtbupload")).
 
 
 decr_num_test() ->
