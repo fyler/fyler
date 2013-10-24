@@ -33,7 +33,7 @@ create_db(Host,User,Pass,DB) ->
     result_path text,
     task_type varchar(20),
     error_msg text,
-    ts date DEFAULT NOW()
+    ts timestamp DEFAULT NOW()
   );"),
   io:format("Table 'tasks' created.~n"),
   pgsql:close(PG).
