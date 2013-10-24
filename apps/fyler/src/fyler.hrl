@@ -43,15 +43,15 @@
 -record(job_stats,{
   id = 0 ::non_neg_integer(),
   status ::success|failed,
-  download_time ::non_neg_integer(),
-  upload_time ::non_neg_integer(),
-  file_size ::non_neg_integer(),
-  file_path ::string(),
-  time_spent ::non_neg_integer(),
-  result_path ::string(),
-  task_type ::atom(),
-  error_msg ::string(),
-  ts ::non_neg_integer()
+  download_time = 0 ::non_neg_integer(),
+  upload_time = 0 ::non_neg_integer(),
+  file_size = 0 ::non_neg_integer(),
+  file_path = "" ::string(),
+  time_spent = 0 ::non_neg_integer(),
+  result_path = [] ::string(),
+  task_type = do_nothing ::atom(),
+  error_msg = "" ::string(),
+  ts = 0 ::non_neg_integer()
 }).
 
 -type stats() ::#job_stats{}.

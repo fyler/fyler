@@ -12,7 +12,7 @@
 
 run(File) -> run(File,[]).
 
-run(#file{tmp_path = Path, name = Name, dir = Dir, target_dir = Target},_Opts) ->
+run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   Start = ulitos:timestamp(),
   M3U = Dir++"/"++Name++".m3u8",
   ?D({"command",?COMMAND(Path,M3U)}),
@@ -20,10 +20,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir, target_dir = Target},_Opts) -
   case filelib:wildcard("*.ts",Dir) of
     [] -> {error,Data};
     _List ->
-      Result = if Target =:= undefined ->
-                    M3U;
-               true -> Target++Name++".m3u8"
-               end,
+      Result = Name++".m3u8",
       {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)]}}
   end.
 

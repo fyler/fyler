@@ -21,7 +21,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},Opts) ->
               ?D({"command",?COMMAND(Path,binary_to_list(Split),PDF)}),
               Data = os:cmd(?COMMAND(Path,binary_to_list(Split),PDF)),
               case  filelib:is_file(PDF) of
-                    true -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(PDF)]}};
+                    true -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Name ++ "_split.pdf")]}};
                     _ -> {error, Data}
               end
   end.

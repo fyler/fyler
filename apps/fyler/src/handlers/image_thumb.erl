@@ -18,7 +18,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   Data = os:cmd(?COMMAND(Path,Out)),
   ?D({imagemagick_data,Data}),
   case  filelib:is_file(Out) of
-    true -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Out)]}};
+    true -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Name ++"_thumb.png")]}};
     _ -> {error, Data}
   end.
 

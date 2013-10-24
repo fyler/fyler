@@ -25,7 +25,7 @@
 %% API
 -export([start_link/0]).
 
--export([run_task/3, clear_stats/0, pools/0, send_response/3, authorize/2, is_authorized/1, tasks_stats/0]).
+-export([run_task/3, clear_stats/0, pools/0, send_response/3, authorize/2, is_authorized/1, tasks_stats/0, save_task_stats/1]).
 
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -134,6 +134,22 @@ tasks_stats() ->
              Other -> ?D({pg_query_failed,Other})
            end,
   [fyler_utils:task_record_to_proplist(V) || V <- Values].
+
+
+
+%% @doc
+%% Save task statistics to pg
+%% @end
+
+-spec save_task_stats(#job_stats{}) -> any().
+
+save_task_stats(#job_stats{}=Stats) ->
+  ValuesString = fyler_utils:stats_to_pg_string(Stats),
+  case pg_cli:equery("insert into tasks (status,download_time,upload_time,file_size,file_path,time_spent,result_path,task_type,error_msg) values ("++ValuesString++")") of
+    {ok,_} -> ok;
+    Other ->  ?D({pg_query_failed,Other})
+  end.
+
 
 %% @doc
 %% Run new task.
@@ -301,11 +317,12 @@ code_change(_OldVsn, State, _Extra) ->
 send_response(#task{callback = undefined}, _, _) ->
   ok;
 
-send_response(#task{callback = Callback, file = #file{is_aws = true, bucket = Bucket}}, #job_stats{result_path = Path}, success) ->
-  ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=true&bucket="++Bucket++"&data=" ++ jiffy:encode({[{path, Path}]}), []);
+send_response(#task{callback = Callback, file = #file{is_aws = true, bucket = Bucket, target_dir = Dir}}, #job_stats{result_path = Path}, success) ->
+  ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=true&bucket="++Bucket++"&data=" ++ jiffy:encode({[{path, Path},{dir, Dir}]}), []);
 
 send_response(#task{callback = Callback, file = #file{is_aws = false}}, #job_stats{result_path = Path}, success) ->
-  ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=false&data=" ++ jiffy:encode({[{path, Path}]}), []);
+ %% ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=false&data=" ++ jiffy:encode({[{path, Path}]}), []);
+  ?D({<<"We cannot work without aws now. Sorry(">>,Callback,Path});
 
 send_response(#task{callback = Callback}, _, failed) ->
   ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=failed", []).

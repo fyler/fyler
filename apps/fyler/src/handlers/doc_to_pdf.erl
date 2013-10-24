@@ -20,7 +20,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   case  filelib:is_file(PDF) of
     true -> case pdf_thumb:run(#file{tmp_path = PDF, name = Name, dir = Dir}) of
               {ok,#job_stats{result_path = Thumb}} ->
-                    {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(PDF)|Thumb]}};
+                    {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Name ++ ".pdf")|Thumb]}};
               Else -> Else
             end;
     _ -> {error, Data}

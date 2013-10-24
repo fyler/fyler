@@ -32,7 +32,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
             {ok,F} = file:open(JSONFile,[write]),
             file:write(F,JSON),
             file:close(F),
-            {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(JSONFile)]}}
+            {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Name++".thumbs.json")]}}
   end.
 
 
