@@ -33,7 +33,7 @@ stats_to_pg_string(#job_stats{status=Status,
   task_type = Type,
   error_msg = Error}) ->
 
-  ResultsList = ulitos:join(Results,","),
+  ResultsList = ulitos:join([binary_to_list(R) || R<-Results],","),
 
   "'"++atom_to_list(Status)++"',"++integer_to_list(DTime)++","++integer_to_list(UTime)++","++integer_to_list(Size)++",'"++Path++"',"++integer_to_list(Time)++",'"++ResultsList++"','"++atom_to_list(Type)++"','"++Error++"'".
 
@@ -86,7 +86,7 @@ rec_to_string_test_() ->
     file_size=1,
     file_path= "path/to/file",
     time_spent=1,
-    result_path= ["path1","path2"],
+    result_path= [<<"path1">>,<<"path2">>],
     task_type= do_nothing,
     error_msg= "command not found"}))
   ].
