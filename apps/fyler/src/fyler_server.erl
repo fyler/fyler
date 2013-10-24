@@ -318,7 +318,7 @@ send_response(#task{callback = undefined}, _, _) ->
   ok;
 
 send_response(#task{callback = Callback, file = #file{is_aws = true, bucket = Bucket, target_dir = Dir}}, #job_stats{result_path = Path}, success) ->
-  ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=true&bucket="++Bucket++"&data=" ++ jiffy:encode({[{path, Path},{dir, Dir}]}), []);
+  ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=true&bucket="++Bucket++"&data=" ++ jiffy:encode({[{path, Path},{dir, list_to_binary(Dir)}]}), []);
 
 send_response(#task{callback = Callback, file = #file{is_aws = false}}, #job_stats{result_path = Path}, success) ->
  %% ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=false&data=" ++ jiffy:encode({[{path, Path}]}), []);
