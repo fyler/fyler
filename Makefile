@@ -49,4 +49,4 @@ version:
 	echo "VERSION=$(VER)" > version.mk
 	git add version.mk
 	git commit -m "Version $(VER)"
-	git tag -s v$(VER) -m "version $(VER)"
+	git tag -a v$(VER) -m "version $(VER)"
