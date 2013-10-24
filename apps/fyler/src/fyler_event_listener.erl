@@ -26,16 +26,16 @@ init(_Args) ->
   ?D({event_handler_set}),
   {ok,[]}.
 
-handle_event(#fevent{type = complete, node = Node, task = #task{file = #file{url = Url}, type = Type} = Task, stats = #job_stats{time_spent = Time, download_time = DTime} = Stats}, State) ->
+handle_event(#fevent{type = complete, node = Node, task = #task{id=TaskId, file = #file{url = Url}, type = Type} = Task, stats = #job_stats{time_spent = Time, download_time = DTime} = Stats}, State) ->
   ?D({task_complete, Type, Url, {time,Time},{download_time,DTime}}),
-  ets:insert(?T_STATS,Stats),
+  ets:delete(?T_STATS,TaskId),
   fyler_server:send_response(Task,Stats,success),
   gen_server:cast(fyler_server,{task_finished,Node}),
   {ok, State};
 
-handle_event(#fevent{type = failed, node = Node, task = #task{file = #file{url = Url}, type = Type} = Task, error = Error, stats = Stats}, State) ->
+handle_event(#fevent{type = failed, node = Node, task = #task{id=TaskId, file = #file{url = Url}, type = Type} = Task, error = Error, stats = _Stats}, State) ->
   ?D({task_failed, Type, Url, Error}),
-  ets:insert(?T_STATS,Stats),
+  ets:delete(?T_STATS,TaskId),
   fyler_server:send_response(Task,undefined,failed),
   gen_server:cast(fyler_server,{task_finished,Node}),
   {ok, State};

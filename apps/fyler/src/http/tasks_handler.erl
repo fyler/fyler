@@ -1,4 +1,4 @@
--module(stats_handler).
+-module(tasks_handler).
 -behaviour(cowboy_http_handler).
 -include("../fyler.hrl").
 %% Cowboy_http_handler callbacks
@@ -12,7 +12,8 @@ init({tcp, http}, Req, _Opts) ->
   {ok, Req, undefined_state}.
 
 handle(Req, State) ->
-  {ok, HTML} = stats_tpl:render([{records, [lists:zip(record_info(fields, current_task), tl(tuple_to_list(R))) || R <- ets:tab2list(?T_STATS)]}]),
+  Records = fyler_server:tasks_stats(),
+  {ok, HTML} = tasks_tpl:render([{records, [lists:zip(record_info(fields, job_stats), tl(tuple_to_list(R))) || R <- Records]}]),
   {ok, Req2} = cowboy_req:reply(200, [], HTML, Req),
   {ok, Req2, State}.
 

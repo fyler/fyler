@@ -25,7 +25,7 @@
 %% API
 -export([start_link/0]).
 
--export([run_task/3, clear_stats/0, pools/0, send_response/3, authorize/2, is_authorized/1]).
+-export([run_task/3, clear_stats/0, pools/0, send_response/3, authorize/2, is_authorized/1, tasks_stats/0]).
 
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -46,6 +46,7 @@
   pools_active = [] :: list(),
   pools_busy = [] :: list(),
   busy_timer_ref = undefined,
+  tasks_count = 1 ::non_neg_integer(),
   tasks = queue:new() :: queue()
 }).
 
@@ -64,7 +65,7 @@ init(_Args) ->
 
   Dir = ?Config(storage_dir, "ff"),
 
-  ets:new(?T_STATS, [bag, public, named_table]),
+  ets:new(?T_STATS, [public, named_table, {keypos, #current_task.id}]),
 
   ets:new(?T_SESSIONS, [private, named_table, {keypos, #ets_session.session_id}]),
 
@@ -121,6 +122,19 @@ pools() ->
 
 
 %% @doc
+%% Return a list of last 50 tasks completed as #job_stats{}.
+%% @end
+
+-spec tasks_stats() -> list(#job_stats{}).
+
+tasks_stats() ->
+  Values = case pg_cli:equery("select * from tasks limit 50") of
+             {ok,_,List} -> List;
+             Other -> ?D({pg_query_failed,Other})
+           end,
+  [fyler_utils:task_record_to_proplist(V) || V <- Values].
+
+%% @doc
 %% Run new task.
 %% @end
 
@@ -130,7 +144,7 @@ run_task(URL, Type, Options) ->
   gen_server:call(?MODULE, {run_task, URL, Type, Options}).
 
 
-handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage_dir = Dir, aws_bucket = Bucket} = State) ->
+handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage_dir = Dir, aws_bucket = Bucket, tasks_count = TCount} = State) ->
   case parse_url(URL, Bucket) of
     {IsAws, Path, Name, Ext} ->
       DirId = + uniqueId() ++ "_" ++ Dir ++ Name,
@@ -138,12 +152,14 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage
       ?D(Options),
       Callback = proplists:get_value(callback, Options, undefined),
       TargetDir = binary_to_list(proplists:get_value(target_dir, Options, <<"">>)),
-      Task = #task{type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = IsAws, url = Path, name = Name, dir = DirId, tmp_path = TmpName}},
+      Task = #task{id=TCount, type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = IsAws, url = Path, name = Name, dir = DirId, tmp_path = TmpName}},
       NewTasks = queue:in(Task, Tasks),
+
+      ets:insert(?T_STATS,#current_task{id=TCount,type = list_to_atom(Type), url = Path, status = queued}),
 
       self() ! try_next_task,
 
-      {reply, ok, State#state{tasks = NewTasks}};
+      {reply, ok, State#state{tasks = NewTasks, tasks_count = TCount+1}};
     _ -> ?D({bad_url, URL}),
       {reply, false, State}
   end;
@@ -236,8 +252,9 @@ handle_info(try_next_task, #state{tasks = Tasks, pools_active = Pools} = State) 
   {NewTasks, NewPools} = case queue:out(Tasks) of
                            {empty, _} -> ?D(no_more_tasks),
                              {Tasks, Pools};
-                           {{value, Task}, Tasks2} -> #pool{node = Node, active_tasks_num = Num, total_tasks = Total} = Pool = choose_pool(Pools),
+                           {{value, #task{id=TaskId,type = TaskType, file = #file{url = TaskUrl}}=Task}, Tasks2} -> #pool{node = Node, active_tasks_num = Num, total_tasks = Total} = Pool = choose_pool(Pools),
                              rpc:cast(Node, fyler_pool, run_task, [Task]),
+                             ets:insert(?T_STATS,#current_task{id=TaskId, type = TaskType, url = TaskUrl, status = progress}),
                              {Tasks2, lists:keystore(Node, #pool.node, Pools, Pool#pool{active_tasks_num = Num + 1, total_tasks = Total + 1})}
                          end,
   Empty = queue:is_empty(NewTasks),
@@ -305,6 +322,7 @@ start_http_server() ->
       Static("img"),
       {"/", index_handler, []},
       {"/stats", stats_handler, []},
+      {"/tasks", tasks_handler, []},
       {"/pools", pools_handler, []},
       {"/api/auth", auth_handler, []},
       {"/api/tasks", task_handler, []},

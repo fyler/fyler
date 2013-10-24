@@ -3,3 +3,9 @@
 {storage_dir,"ff"}.
 {http_port,8008}.
 {aws_s3_bucket, "tbconvert"}.
+{pg_host,"127.0.0.1"}.
+{pg_db,"fyler"}.
+{pg_user,"fyler"}.
+{pg_pass,"fyler"}.
+{pg_pool_size, 5}.
+{pg_max_overflow, 10}.

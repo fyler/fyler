@@ -3,7 +3,9 @@
 
 -define(Config(X,Y),ulitos:get_var(fyler,X,Y)).
 
--define(T_STATS,fyler_statistics).
+-define(T_STATS,fyler_live_statistics).
+
+-define(PG_POOL,fyler_pg_pool).
 
 -record(file,{
   url ::string(),
@@ -20,6 +22,7 @@
 -type file() ::#file{}.
 
 -record(task,{
+  id ::non_neg_integer(),
   type ::atom(),
   file ::file(),
   callback = undefined ::binary(),
@@ -29,7 +32,16 @@
 
 -type task() ::#task{}.
 
+-record(current_task,{
+  id ::non_neg_integer(),
+  status ::queued|progress,
+  type ::atom(),
+  url ::string()
+}).
+
+
 -record(job_stats,{
+  id = 0 ::non_neg_integer(),
   status ::success|failed,
   download_time ::non_neg_integer(),
   upload_time ::non_neg_integer(),
@@ -38,7 +50,7 @@
   time_spent ::non_neg_integer(),
   result_path ::string(),
   task_type ::atom(),
-  error_msg ::any(),
+  error_msg ::string(),
   ts ::non_neg_integer()
 }).
 
