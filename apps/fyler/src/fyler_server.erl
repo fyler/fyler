@@ -147,7 +147,7 @@ run_task(URL, Type, Options) ->
 handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage_dir = Dir, aws_bucket = Bucket, tasks_count = TCount} = State) ->
   case parse_url(URL, Bucket) of
     {IsAws, Path, Name, Ext} ->
-      DirId = uniqueId() ++ "_" ++ Dir ++ Name,
+      DirId = Dir ++ uniqueId() ++ "_" ++ Name,
       TmpName = DirId ++ "/" ++ Name ++ "." ++ Ext,
       ?D(Options),
       Callback = proplists:get_value(callback, Options, undefined),
