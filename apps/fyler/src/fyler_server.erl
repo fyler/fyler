@@ -43,11 +43,11 @@
   cowboy_pid :: pid(),
   storage_dir :: string(),
   aws_bucket :: string(),
-  aws_dir ::string(),
+  aws_dir :: string(),
   pools_active = [] :: list(),
   pools_busy = [] :: list(),
   busy_timer_ref = undefined,
-  tasks_count = 1 ::non_neg_integer(),
+  tasks_count = 1 :: non_neg_integer(),
   tasks = queue:new() :: queue()
 }).
 
@@ -74,7 +74,7 @@ init(_Args) ->
 
   Bucket = ?Config(aws_s3_bucket, undefined),
 
-  {ok, #state{cowboy_pid = Http, storage_dir = Dir, aws_bucket = Bucket, aws_dir = ?Config(aws_dir,"fyler/")}}.
+  {ok, #state{cowboy_pid = Http, storage_dir = Dir, aws_bucket = Bucket, aws_dir = ?Config(aws_dir, "fyler/")}}.
 
 
 %% @doc
@@ -82,26 +82,26 @@ init(_Args) ->
 %% @end
 
 
--spec authorize(Login::binary(), PassHash::binary()) -> false|{ok,Token::string()}.
+-spec authorize(Login :: binary(), PassHash :: binary()) -> false|{ok, Token :: string()}.
 
 authorize(Login, PassHash) ->
   case ?Config(auth_pass, null) of
     null -> gen_server:call(?MODULE, create_session);
-    Pass -> L = ?Config(auth_login,none),
-            case ulitos:binary_to_hex(crypto:hash(md5, Pass)) == binary_to_list(PassHash) andalso binary_to_list(Login) == L of
-              true -> gen_server:call(?MODULE, create_session);
-              _ -> false
-            end
+    Pass -> L = ?Config(auth_login, none),
+      case ulitos:binary_to_hex(crypto:hash(md5, Pass)) == binary_to_list(PassHash) andalso binary_to_list(Login) == L of
+        true -> gen_server:call(?MODULE, create_session);
+        _ -> false
+      end
   end.
 
 
 %% @doc
 %% @end
 
--spec is_authorized(Token::binary()) -> boolean().
+-spec is_authorized(Token :: binary()) -> boolean().
 
 is_authorized(Token) ->
-  gen_server:call(?MODULE,{is_authorized,binary_to_list(Token)}).
+  gen_server:call(?MODULE, {is_authorized, binary_to_list(Token)}).
 
 
 %% @doc
@@ -130,11 +130,10 @@ pools() ->
 
 tasks_stats() ->
   Values = case pg_cli:equery("select * from tasks limit 50") of
-             {ok,_,List} -> List;
-             Other -> ?D({pg_query_failed,Other})
+             {ok, _, List} -> List;
+             Other -> ?D({pg_query_failed, Other})
            end,
   [fyler_utils:task_record_to_proplist(V) || V <- Values].
-
 
 
 %% @doc
@@ -143,11 +142,11 @@ tasks_stats() ->
 
 -spec save_task_stats(#job_stats{}) -> any().
 
-save_task_stats(#job_stats{}=Stats) ->
+save_task_stats(#job_stats{} = Stats) ->
   ValuesString = fyler_utils:stats_to_pg_string(Stats),
-  case pg_cli:equery("insert into tasks (status,download_time,upload_time,file_size,file_path,time_spent,result_path,task_type,error_msg) values ("++ValuesString++")") of
-    {ok,_} -> ok;
-    Other ->  ?D({pg_query_failed,Other})
+  case pg_cli:equery("insert into tasks (status,download_time,upload_time,file_size,file_path,time_spent,result_path,task_type,error_msg) values (" ++ ValuesString ++ ")") of
+    {ok, _} -> ok;
+    Other -> ?D({pg_query_failed, Other})
   end.
 
 
@@ -170,35 +169,38 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage
       ?D(Options),
       Callback = proplists:get_value(callback, Options, undefined),
       TargetDir = case proplists:get_value(target_dir, Options) of
-                    undefined -> AwsDir++UniqueDir;
-                    TargetDir_  -> binary_to_list(TargetDir_)
+                    undefined -> AwsDir ++ UniqueDir;
+                    TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Bucket) of
+                                    {true, Path} -> Path;
+                                    _ -> ?D(wrong_target_dir), AwsDir ++ UniqueDir
+                                  end
                   end,
-      Task = #task{id=TCount, type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = IsAws, url = Path, name = Name, dir = DirId, tmp_path = TmpName}},
+      Task = #task{id = TCount, type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = IsAws, url = Path, name = Name, dir = DirId, tmp_path = TmpName}},
       NewTasks = queue:in(Task, Tasks),
 
-      ets:insert(?T_STATS,#current_task{id=TCount,type = list_to_atom(Type), url = Path, status = queued}),
+      ets:insert(?T_STATS, #current_task{id = TCount, type = list_to_atom(Type), url = Path, status = queued}),
 
       self() ! try_next_task,
 
-      {reply, ok, State#state{tasks = NewTasks, tasks_count = TCount+1}};
+      {reply, ok, State#state{tasks = NewTasks, tasks_count = TCount + 1}};
     _ -> ?D({bad_url, URL}),
       {reply, false, State}
   end;
 
 
-handle_call(create_session,_From, #state{} = State) ->
+handle_call(create_session, _From, #state{} = State) ->
   random:seed(now()),
   Token = ulitos:random_string(16),
-  ets:insert(?T_SESSIONS,#ets_session{expiration_date = ulitos:timestamp() + ?SESSION_EXP_TIME, session_id = Token}),
-  erlang:send_after(?SESSION_EXP_TIME,self(),{session_expired,Token}),
-  {reply,{ok,Token},State};
+  ets:insert(?T_SESSIONS, #ets_session{expiration_date = ulitos:timestamp() + ?SESSION_EXP_TIME, session_id = Token}),
+  erlang:send_after(?SESSION_EXP_TIME, self(), {session_expired, Token}),
+  {reply, {ok, Token}, State};
 
-handle_call({is_authorized,Token},_From, #state{} = State) ->
-  Reply = case ets:lookup(?T_SESSIONS,Token) of
+handle_call({is_authorized, Token}, _From, #state{} = State) ->
+  Reply = case ets:lookup(?T_SESSIONS, Token) of
             [#ets_session{}] -> true;
             _ -> false
           end,
-  {reply,Reply,State};
+  {reply, Reply, State};
 
 
 handle_call(pools, _From, #state{pools_active = P1, pools_busy = P2} = State) ->
@@ -240,8 +242,8 @@ handle_cast(_Request, State) ->
 
 
 handle_info({session_expired, Token}, State) ->
-  ets:delete(?T_SESSIONS,Token),
-  {noreply,State};
+  ets:delete(?T_SESSIONS, Token),
+  {noreply, State};
 
 handle_info({pool_connected, Node, true, Num}, #state{pools_active = Pools} = State) ->
   NewPools = lists:keystore(Node, #pool.node, Pools, #pool{node = Node, active_tasks_num = Num, enabled = true}),
@@ -265,17 +267,17 @@ handle_info(try_next_task, #state{pools_active = [], tasks = Tasks} = State) whe
   {noreply, State};
 
 
-handle_info(try_next_task, #state{pools_active = Pools,busy_timer_ref = Ref}=State) when Ref /= undefined andalso length(Pools)>0  ->
+handle_info(try_next_task, #state{pools_active = Pools, busy_timer_ref = Ref} = State) when Ref /= undefined andalso length(Pools) > 0 ->
   erlang:cancel_timer(Ref),
-  handle_info(try_next_task,State#state{busy_timer_ref = undefined});
+  handle_info(try_next_task, State#state{busy_timer_ref = undefined});
 
 handle_info(try_next_task, #state{tasks = Tasks, pools_active = Pools} = State) ->
   {NewTasks, NewPools} = case queue:out(Tasks) of
                            {empty, _} -> ?D(no_more_tasks),
                              {Tasks, Pools};
-                           {{value, #task{id=TaskId,type = TaskType, file = #file{url = TaskUrl}}=Task}, Tasks2} -> #pool{node = Node, active_tasks_num = Num, total_tasks = Total} = Pool = choose_pool(Pools),
+                           {{value, #task{id = TaskId, type = TaskType, file = #file{url = TaskUrl}} = Task}, Tasks2} -> #pool{node = Node, active_tasks_num = Num, total_tasks = Total} = Pool = choose_pool(Pools),
                              rpc:cast(Node, fyler_pool, run_task, [Task]),
-                             ets:insert(?T_STATS,#current_task{id=TaskId, type = TaskType, url = TaskUrl, status = progress}),
+                             ets:insert(?T_STATS, #current_task{id = TaskId, type = TaskType, url = TaskUrl, status = progress}),
                              {Tasks2, lists:keystore(Node, #pool.node, Pools, Pool#pool{active_tasks_num = Num + 1, total_tasks = Total + 1})}
                          end,
   Empty = queue:is_empty(NewTasks),
@@ -318,11 +320,11 @@ send_response(#task{callback = undefined}, _, _) ->
   ok;
 
 send_response(#task{callback = Callback, file = #file{is_aws = true, bucket = Bucket, target_dir = Dir}}, #job_stats{result_path = Path}, success) ->
-  ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=true&bucket="++Bucket++"&data=" ++ jiffy:encode({[{path, Path},{dir, list_to_binary(Dir)}]}), []);
+  ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=true&bucket=" ++ Bucket ++ "&data=" ++ jiffy:encode({[{path, Path}, {dir, list_to_binary(Dir)}]}), []);
 
 send_response(#task{callback = Callback, file = #file{is_aws = false}}, #job_stats{result_path = Path}, success) ->
- %% ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=false&data=" ++ jiffy:encode({[{path, Path}]}), []);
-  ?D({<<"We cannot work without aws now. Sorry(">>,Callback,Path});
+  %% ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=false&data=" ++ jiffy:encode({[{path, Path}]}), []);
+  ?D({<<"We cannot work without aws now. Sorry(">>, Callback, Path});
 
 send_response(#task{callback = Callback}, _, failed) ->
   ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=failed", []).
@@ -405,17 +407,29 @@ parse_url(Path, Bucket) ->
   {ok, Re} = re:compile("[^:]+://.+/([^/]+)\\.([^\\.]+)"),
   case re:run(Path, Re, [{capture, all, list}]) of
     {match, [_, Name, Ext]} ->
-      {ok, Re2} = re:compile("[^:]+://"++Bucket++"\\.s3\\.amazonaws\\.com/(.+)"),
+      {ok, Re2} = re:compile("[^:]+://" ++ Bucket ++ "\\.s3\\.amazonaws\\.com/(.+)"),
       case re:run(Path, Re2, [{capture, all, list}]) of
         {match, [_, Path2]} -> {true, Bucket ++ "/" ++ Path2, Name, Ext};
-        _ ->  {ok, Re3} = re:compile("[^:]+://s3\\-[^\\.]+\\.amazonaws\\.com/([^/]+)/(.+)"),
-              case re:run(Path, Re3, [{capture, all, list}]) of
-                    {match, [_, Bucket, Path2]} -> {true, Bucket ++ "/" ++ Path2, Name, Ext};
-                    _ -> {false, Path, Name, Ext}
-              end
+        _ -> {ok, Re3} = re:compile("[^:]+://s3\\-[^\\.]+\\.amazonaws\\.com/([^/]+)/(.+)"),
+          case re:run(Path, Re3, [{capture, all, list}]) of
+            {match, [_, Bucket, Path2]} -> {true, Bucket ++ "/" ++ Path2, Name, Ext};
+            _ -> {false, Path, Name, Ext}
+          end
       end;
     _ ->
       false
+  end.
+
+
+parse_url_dir(Path, Bucket) ->
+  {ok, Re2} = re:compile("[^:]+://" ++ Bucket ++ "\\.s3\\.amazonaws\\.com/(.+)"),
+  case re:run(Path, Re2, [{capture, all, list}]) of
+    {match, [_, Path2]} -> {true, Path2};
+    _ -> {ok, Re3} = re:compile("[^:]+://s3\\-[^\\.]+\\.amazonaws\\.com/([^/]+)/(.+)"),
+      case re:run(Path, Re3, [{capture, all, list}]) of
+        {match, [_, Bucket, Path2]} -> {true, Path2};
+        _ -> {false, Path}
+      end
   end.
 
 -spec uniqueId() -> string().
@@ -479,21 +493,21 @@ choose_pool_test() ->
 
 authorization_test_() ->
   {"Authorization test",
-      {setup,
-        fun start_server_/0,
-        fun stop_server_/1,
-        fun(_) ->
+    {setup,
+      fun start_server_/0,
+      fun stop_server_/1,
+      fun(_) ->
         {inorder,
-              [
-                add_session_t_(),
-                wrong_login_t_(),
-                wrong_pass_t_(),
-                is_authorized_t_(),
-                is_authorized_failed_t_()
-              ]
+          [
+            add_session_t_(),
+            wrong_login_t_(),
+            wrong_pass_t_(),
+            is_authorized_t_(),
+            is_authorized_failed_t_()
+          ]
         }
-          end
-      }
+      end
+    }
   }.
 
 
@@ -506,25 +520,25 @@ stop_server_(_) ->
 
 
 add_session_t_() ->
-  P = ulitos:binary_to_hex(crypto:hash(md5,?Config(auth_pass,""))),
-  ?_assertMatch({ok,_},fyler_server:authorize(list_to_binary(?Config(auth_login,"")),list_to_binary(P))).
+  P = ulitos:binary_to_hex(crypto:hash(md5, ?Config(auth_pass, ""))),
+  ?_assertMatch({ok, _}, fyler_server:authorize(list_to_binary(?Config(auth_login, "")), list_to_binary(P))).
 
 
 wrong_login_t_() ->
-  P = ulitos:binary_to_hex(crypto:hash(md5,?Config(auth_pass,""))),
-  ?_assertEqual(false,fyler_server:authorize(<<"badlogin">>,list_to_binary(P))).
+  P = ulitos:binary_to_hex(crypto:hash(md5, ?Config(auth_pass, ""))),
+  ?_assertEqual(false, fyler_server:authorize(<<"badlogin">>, list_to_binary(P))).
 
 wrong_pass_t_() ->
-  P = ulitos:binary_to_hex(crypto:hash(md5,"wqe")),
-  ?_assertEqual(false,fyler_server:authorize(?Config(auth_login,""),list_to_binary(P))).
+  P = ulitos:binary_to_hex(crypto:hash(md5, "wqe")),
+  ?_assertEqual(false, fyler_server:authorize(?Config(auth_login, ""), list_to_binary(P))).
 
 is_authorized_t_() ->
-  P = ulitos:binary_to_hex(crypto:hash(md5,?Config(auth_pass,""))),
-  {ok,Token} = fyler_server:authorize(list_to_binary(?Config(auth_login,"")),list_to_binary(P)),
-  ?_assertEqual(true,fyler_server:is_authorized(list_to_binary(Token))).
+  P = ulitos:binary_to_hex(crypto:hash(md5, ?Config(auth_pass, ""))),
+  {ok, Token} = fyler_server:authorize(list_to_binary(?Config(auth_login, "")), list_to_binary(P)),
+  ?_assertEqual(true, fyler_server:is_authorized(list_to_binary(Token))).
 
 is_authorized_failed_t_() ->
-  ?_assertEqual(false,fyler_server:is_authorized(<<"123456">>)).
+  ?_assertEqual(false, fyler_server:is_authorized(<<"123456">>)).
 
 
 -endif.
