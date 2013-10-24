@@ -151,7 +151,10 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage
       TmpName = DirId ++ "/" ++ Name ++ "." ++ Ext,
       ?D(Options),
       Callback = proplists:get_value(callback, Options, undefined),
-      TargetDir = binary_to_list(proplists:get_value(target_dir, Options, <<"">>)),
+      TargetDir = case proplists:get_value(target_dir, Options) of
+                    undefined -> [];
+                    TargetDir_  -> binary_to_list(TargetDir_)
+                  end,
       Task = #task{id=TCount, type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = IsAws, url = Path, name = Name, dir = DirId, tmp_path = TmpName}},
       NewTasks = queue:in(Task, Tasks),
 
