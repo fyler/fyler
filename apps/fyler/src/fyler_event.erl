@@ -72,7 +72,7 @@ task_completed(Task, Stats) ->
 %% @doc Send when task job is failed.
 %% @end
 
-task_failed(Task, #job_stats{error_msg = {error,Error}} = Stats) ->
+task_failed(Task, #job_stats{error_msg = Error} = Stats) ->
   gen_event:notify({global, ?MODULE}, #fevent{type = failed,node=node(), task = Task,error = Error, stats = Stats}).
 
 

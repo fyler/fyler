@@ -277,7 +277,7 @@ handle_info(try_next_task, #state{tasks = Tasks, pools_active = Pools} = State) 
                              {Tasks, Pools};
                            {{value, #task{id = TaskId, type = TaskType, file = #file{url = TaskUrl}} = Task}, Tasks2} -> #pool{node = Node, active_tasks_num = Num, total_tasks = Total} = Pool = choose_pool(Pools),
                              rpc:cast(Node, fyler_pool, run_task, [Task]),
-                             ets:insert(?T_STATS, #current_task{id = TaskId, type = TaskType, url = TaskUrl, status = progress}),
+                             ets:insert(?T_STATS, #current_task{id = TaskId, task = Task, type = TaskType, url = TaskUrl, pool = Node, status = progress}),
                              {Tasks2, lists:keystore(Node, #pool.node, Pools, Pool#pool{active_tasks_num = Num + 1, total_tasks = Total + 1})}
                          end,
   Empty = queue:is_empty(NewTasks),
@@ -292,11 +292,19 @@ handle_info(alarm_high_idle_time, State) ->
   %%todo:
   {noreply, State#state{busy_timer_ref = undefined}};
 
-handle_info({nodedown, Node}, #state{pools_active = Pools, pools_busy = Busy} = State) ->
+handle_info({nodedown, Node}, #state{pools_active = Pools, pools_busy = Busy, tasks = OldTasks} = State) ->
   ?D({nodedown, Node}),
   NewPools = lists:keydelete(Node, #pool.node, Pools),
   NewBusy = lists:keydelete(Node, #pool.node, Busy),
-  {noreply, State#state{pools_active = NewPools, pools_busy = NewBusy}};
+
+  NewTasks = case ets:match_object(?T_STATS,#current_task{pool = Node,_='_'}) of
+    [] -> ?I("No active tasks in died pool"), OldTasks;
+    Tasks -> ?I("Pool died with active tasks; restarting..."),
+             self() ! try_next_task,
+             restart_tasks(Tasks,OldTasks)
+  end,
+
+  {noreply, State#state{pools_active = NewPools, pools_busy = NewBusy, tasks = NewTasks}};
 
 handle_info(Info, State) ->
   ?D(Info),
@@ -372,6 +380,21 @@ start_http_server() ->
 
 choose_pool(Pools) ->
   hd(lists:keysort(#pool.active_tasks_num, Pools)).
+
+%% @doc
+%% Add tasks to the queue again.
+%% @end
+
+-spec restart_tasks(list(#current_task{}),queue()) -> queue().
+
+restart_tasks([],Tasks) -> ?I("All tasks restarted."), Tasks;
+
+restart_tasks([#current_task{task = Task}|T],Old) ->
+  ?D({restarting_task, Task}),
+  restart_tasks(T,queue:in(Task,Old)).
+
+
+
 
 
 

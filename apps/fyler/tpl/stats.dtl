@@ -6,6 +6,7 @@
         <th scope="col" class="a">Id</th>
         <th scope="col" class="a">Path</th>
         <th scope="col" class="b">Status</th>
+        <th scope="col" class="b">Pool</th>
         <th scope="col" class="g">Task</th>
     </tr>
     </thead>
@@ -15,6 +16,7 @@
         <td class="a">{{record.id}}</td>
         <td class="a">{{record.url}}</td>
         <td class="b">{{record.status}}</td>
+        <td class="b">{{record.pool}}</td>
         <td class="g">{{record.type}}</td>
     </tr>
     {% endfor %}

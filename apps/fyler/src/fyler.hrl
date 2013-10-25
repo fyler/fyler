@@ -35,7 +35,9 @@
 -record(current_task,{
   id ::non_neg_integer(),
   status ::queued|progress,
+  task ::task(),
   type ::atom(),
+  pool ::atom(),
   url ::string()
 }).
 
