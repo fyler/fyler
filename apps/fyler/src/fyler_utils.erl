@@ -30,12 +30,11 @@ stats_to_pg_string(#job_stats{status=Status,
   file_path = Path,
   time_spent = Time,
   result_path = Results,
-  task_type = Type,
-  error_msg = Error}) ->
+  task_type = Type}) ->
 
   ResultsList = ulitos:join([binary_to_list(R) || R<-Results],","),
 
-  "'"++atom_to_list(Status)++"',"++integer_to_list(DTime)++","++integer_to_list(UTime)++","++integer_to_list(Size)++",'"++Path++"',"++integer_to_list(Time)++",'"++ResultsList++"','"++atom_to_list(Type)++"','"++Error++"'".
+  "'"++atom_to_list(Status)++"',"++integer_to_list(DTime)++","++integer_to_list(UTime)++","++integer_to_list(Size)++",'"++Path++"',"++integer_to_list(Time)++",'"++ResultsList++"','"++atom_to_list(Type)++"','Error'".
 
 
 %% @doc Convert epgsql time fromat to number.
