@@ -129,7 +129,7 @@ pools() ->
 -spec tasks_stats() -> list(#job_stats{}).
 
 tasks_stats() ->
-  Values = case pg_cli:equery("select * from tasks limit 50") of
+  Values = case pg_cli:equery("select * from tasks order by id desc limit 50") of
              {ok, _, List} -> List;
              Other -> ?D({pg_query_failed, Other})
            end,
