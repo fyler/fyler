@@ -11,7 +11,7 @@
   "ffmpeg -i "++In++" -c:v libx264 -g 15 -keyint_min 15 -c:a libfaac -ac 2 -ar 48000 -ab 192k -profile:v baseline -hls_time 10 -hls_list_size 999 "++Out).
 
 -define(COMMAND2(In,Out),
-  "ffmpeg -i "++In++" -c:v libx264 -g 2 -keyint_min 2 -an -profile:v baseline -level:v 3.0 -pix_fmt yuv420p  -vf scale=\"trunc(iw/2)*2:trunc(ih/2)*2\" -hls_time 10 -hls_list_size 999 "++Out).
+  "ffmpeg -i "++In++" -c:v libx264 -g 2 -keyint_min 2 -an -profile:v baseline -level:v 3.0 -pix_fmt yuv420p  -r 2 -hls_time 10 -hls_list_size 999 "++Out).
 
 run(File) -> run(File,[]).
 
