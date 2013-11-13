@@ -1,19 +1,37 @@
 #!/bin/sh
 
+echo [$(date +"%Y-%m-%d %H:%M:%S")] Flush temporary files begins.
+
 SOURCE="${BASH_SOURCE[0]}"
 
-echo $(SOURCE)
+ROOT_DIR=$( dirname "${SOURCE}")
 
-CONFIG=${dirname(SOURCE)}/etc/fyler.config
+CONFIG=${ROOT_DIR}/etc/fyler.config
 
-echo ${CONFIG}
+DIR=FALSE
 
 if [ -f $CONFIG ]
 then
 
-mytemp=`grep storage_dir $fil | tail -1 | cut -d = -f2 | cut -d : -f1`
-echo "Current temperature is: $mytemp"
+while read line
+  do
+    echo $line | grep -q storage_dir
+    if [ $? == 0 ]; then
+        re="^\{storage_dir,\"([^\}]+)\"\}\.$"
+        [[ $line =~ $re ]] && var1="${BASH_REMATCH[1]}" && DIR=${var1}/
+    fi
+  done < $CONFIG
+
+else
+
+echo 'not_a_file'
+
+exit 0
 
 fi
 
-#find ${DIR} -mtime +1 -exec rm {} \;
+find ${DIR} -type d -mindepth 1 -maxdepth 1 -mtime +1 -exec rm -R {} \;
+
+echo [$(date +"%Y-%m-%d %H:%M:%S")] Flush complete.
+
+exit 1

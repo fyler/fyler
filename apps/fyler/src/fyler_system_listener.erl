@@ -24,14 +24,14 @@ init(_Args) ->
 
 handle_event({set_alarm,{system_memory_high_watermark,_}},S) ->
   case ?Config(role,false) of
-    pool -> fyler_pool:disable();
+    pool -> ?I({system_memory_hw_set});%fyler_pool:disable();
     _ -> ok
   end,
   {ok,S};
 
 handle_event({clear_alarm,system_memory_high_watermark},S) ->
   case ?Config(role,false) of
-    pool -> fyler_pool:enable();
+    pool -> ?I({system_memory_hw_clear});%%fyler_pool:enable();
     _ -> ok
   end,
   {ok,S};
