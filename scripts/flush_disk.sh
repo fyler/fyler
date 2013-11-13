@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 echo [$(date +"%Y-%m-%d %H:%M:%S")] Flush temporary files begins.
 
@@ -30,7 +30,7 @@ exit 0
 
 fi
 
-find ${DIR} -type d -mindepth 1 -maxdepth 1 -mtime +1 -exec rm -R {} \;
+find ${DIR} -mindepth 1 -maxdepth 1 -type d -mtime +1 -exec rm -R {} \;
 
 echo [$(date +"%Y-%m-%d %H:%M:%S")] Flush complete.
 

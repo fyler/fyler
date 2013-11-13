@@ -82,13 +82,13 @@ init(_Args) ->
 %% @end
 
 
--spec authorize(Login :: binary(), PassHash :: binary()) -> false|{ok, Token :: string()}.
+-spec authorize(Login :: binary(), Pass :: binary()) -> false|{ok, Token :: string()}.
 
-authorize(Login, PassHash) ->
+authorize(Login, Pass) ->
   case ?Config(auth_pass, null) of
     null -> gen_server:call(?MODULE, create_session);
-    Pass -> L = ?Config(auth_login, none),
-      case ulitos:binary_to_hex(crypto:hash(md5, Pass)) == binary_to_list(PassHash) andalso binary_to_list(Login) == L of
+    PassHash -> L = ?Config(auth_login, none),
+      case ulitos:binary_to_hex(crypto:hash(md5, binary_to_list(Pass))) == PassHash andalso binary_to_list(Login) == L of
         true -> gen_server:call(?MODULE, create_session);
         _ -> false
       end
