@@ -1,1 +1,1 @@
-VERSION=
+VERSION=v0.2
