@@ -73,7 +73,11 @@ task_completed(Task, Stats) ->
 %% @end
 
 task_failed(Task, #job_stats{error_msg = Error} = Stats) ->
-  gen_event:notify({global, ?MODULE}, #fevent{type = failed,node=node(), task = Task,error = Error, stats = Stats}).
+  gen_event:notify({global, ?MODULE}, #fevent{type = failed, node=node(), task = Task, error = Error, stats = Stats});
+
+
+task_failed(Task, Error) ->
+  ?E({task_failed, Task, unknown_error, Error}).
 
 
 %% @doc

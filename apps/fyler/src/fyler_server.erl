@@ -275,10 +275,14 @@ handle_info(try_next_task, #state{tasks = Tasks, pools_active = Pools} = State) 
   {NewTasks, NewPools} = case queue:out(Tasks) of
                            {empty, _} -> ?D(no_more_tasks),
                              {Tasks, Pools};
-                           {{value, #task{id = TaskId, type = TaskType, file = #file{url = TaskUrl}} = Task}, Tasks2} -> #pool{node = Node, active_tasks_num = Num, total_tasks = Total} = Pool = choose_pool(Pools),
-                             rpc:cast(Node, fyler_pool, run_task, [Task]),
-                             ets:insert(?T_STATS, #current_task{id = TaskId, task = Task, type = TaskType, url = TaskUrl, pool = Node, status = progress}),
-                             {Tasks2, lists:keystore(Node, #pool.node, Pools, Pool#pool{active_tasks_num = Num + 1, total_tasks = Total + 1})}
+                           {{value, #task{id = TaskId, type = TaskType, file = #file{url = TaskUrl}} = Task}, Tasks2} ->
+                             case choose_pool(Pools) of
+                               #pool{node = Node, active_tasks_num = Num, total_tasks = Total} = Pool ->
+                                 rpc:cast(Node, fyler_pool, run_task, [Task]),
+                                 ets:insert(?T_STATS, #current_task{id = TaskId, task = Task, type = TaskType, url = TaskUrl, pool = Node, status = progress}),
+                                 {Tasks2, lists:keystore(Node, #pool.node, Pools, Pool#pool{active_tasks_num = Num + 1, total_tasks = Total + 1})};
+                               _ -> {Tasks, Pools}
+                             end
                          end,
   Empty = queue:is_empty(NewTasks),
   if Empty
@@ -297,12 +301,12 @@ handle_info({nodedown, Node}, #state{pools_active = Pools, pools_busy = Busy, ta
   NewPools = lists:keydelete(Node, #pool.node, Pools),
   NewBusy = lists:keydelete(Node, #pool.node, Busy),
 
-  NewTasks = case ets:match_object(?T_STATS,#current_task{pool = Node,_='_'}) of
-    [] -> ?I("No active tasks in died pool"), OldTasks;
-    Tasks -> ?I("Pool died with active tasks; restarting..."),
-             self() ! try_next_task,
-             restart_tasks(Tasks,OldTasks)
-  end,
+  NewTasks = case ets:match_object(?T_STATS, #current_task{pool = Node, _ = '_'}) of
+               [] -> ?I("No active tasks in died pool"), OldTasks;
+               Tasks -> ?I("Pool died with active tasks; restarting..."),
+                 self() ! try_next_task,
+                 restart_tasks(Tasks, OldTasks)
+             end,
 
   {noreply, State#state{pools_active = NewPools, pools_busy = NewBusy, tasks = NewTasks}};
 
@@ -385,13 +389,13 @@ choose_pool(Pools) ->
 %% Add tasks to the queue again.
 %% @end
 
--spec restart_tasks(list(#current_task{}),queue()) -> queue().
+-spec restart_tasks(list(#current_task{}), queue()) -> queue().
 
-restart_tasks([],Tasks) -> ?I("All tasks restarted."), Tasks;
+restart_tasks([], Tasks) -> ?I("All tasks restarted."), Tasks;
 
-restart_tasks([#current_task{task = Task}|T],Old) ->
+restart_tasks([#current_task{task = Task}|T], Old) ->
   ?D({restarting_task, Task}),
-  restart_tasks(T,queue:in(Task,Old)).
+  restart_tasks(T, queue:in(Task, Old)).
 
 
 
@@ -405,22 +409,26 @@ decriment_tasks_num([], [], _Node) ->
 
 decriment_tasks_num(A, [], Node) ->
   case lists:keyfind(Node, #pool.node, A) of
-    #pool{active_tasks_num = N} = Pool when N > 0 -> {lists:keystore(Node, #pool.node, A, Pool#pool{active_tasks_num = N - 1}), []};
+    #pool{active_tasks_num = N} = Pool when N > 0 ->
+      {lists:keystore(Node, #pool.node, A, Pool#pool{active_tasks_num = N - 1}), []};
     _ -> {A, []}
   end;
 
 decriment_tasks_num([], A, Node) ->
   case lists:keyfind(Node, #pool.node, A) of
-    #pool{active_tasks_num = N} = Pool when N > 0 -> {[], lists:keystore(Node, #pool.node, A, Pool#pool{active_tasks_num = N - 1})};
+    #pool{active_tasks_num = N} = Pool when N > 0 ->
+      {[], lists:keystore(Node, #pool.node, A, Pool#pool{active_tasks_num = N - 1})};
     _ -> {[], A}
   end;
 
 decriment_tasks_num(A, B, Node) ->
   case lists:keyfind(Node, #pool.node, A) of
-    #pool{active_tasks_num = N} = Pool when N > 0 -> {lists:keystore(Node, #pool.node, A, Pool#pool{active_tasks_num = N - 1}), B};
+    #pool{active_tasks_num = N} = Pool when N > 0 ->
+      {lists:keystore(Node, #pool.node, A, Pool#pool{active_tasks_num = N - 1}), B};
     #pool{active_tasks_num = 0} -> {A, B};
     _ -> case lists:keyfind(Node, #pool.node, B) of
-           #pool{active_tasks_num = N} = Pool when N > 0 -> {A, lists:keystore(Node, #pool.node, B, Pool#pool{active_tasks_num = N - 1})};
+           #pool{active_tasks_num = N} = Pool when N > 0 ->
+             {A, lists:keystore(Node, #pool.node, B, Pool#pool{active_tasks_num = N - 1})};
            _ -> {A, B}
          end
   end.
@@ -480,9 +488,9 @@ path_to_test() ->
 
 
 dir_url_test() ->
-  ?assertEqual({true,"recordings/2/record_17/stream_1/"},parse_url_dir("https://devtbupload.s3.amazonaws.com/recordings/2/record_17/stream_1/","devtbupload")),
-  ?assertEqual({true,"recordings/2/record_17/stream_1/"},parse_url_dir("http://s3-eu-west-1.amazonaws.com/devtbupload/recordings/2/record_17/stream_1/","devtbupload")),
-  ?assertEqual({false,"https://2.com/record_17/stream_1/"},parse_url_dir("https://2.com/record_17/stream_1/","devtbupload")).
+  ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("https://devtbupload.s3.amazonaws.com/recordings/2/record_17/stream_1/", "devtbupload")),
+  ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("http://s3-eu-west-1.amazonaws.com/devtbupload/recordings/2/record_17/stream_1/", "devtbupload")),
+  ?assertEqual({false, "https://2.com/record_17/stream_1/"}, parse_url_dir("https://2.com/record_17/stream_1/", "devtbupload")).
 
 
 decr_num_test() ->
