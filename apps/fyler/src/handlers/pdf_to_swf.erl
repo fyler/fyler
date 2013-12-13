@@ -7,7 +7,7 @@
 
 -export([run/1, run/2]).
 
--define(COMMAND(In,OutDir), "pdf2swf -T 10 -f '"++In++"' -o '"++OutDir++"/slide%.swf'").
+-define(COMMAND(In,OutDir), "pdf2swf -T 10 -f '"++In++"' -o '"++OutDir++"/slide%04d.swf'").
 
 run(File) -> run(File,[]).
 

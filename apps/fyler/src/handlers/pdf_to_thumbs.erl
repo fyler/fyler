@@ -7,7 +7,7 @@
 
 -export([run/1, run/2]).
 
--define(COMMAND(In,OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m  -sOutputFile=\""++OutName++"thumb_%d.png\" -r15 -q \""++In++"\" -c quit").
+-define(COMMAND(In,OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m  -sOutputFile=\""++OutName++"thumb_%04d.png\" -r15 -q \""++In++"\" -c quit").
 
 run(File) -> run(File,[]).
 

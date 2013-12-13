@@ -7,7 +7,7 @@
 
 -export([run/1, run/2]).
 
--define(COMMAND(In, OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=jpeg  -sOutputFile=\"" ++ OutName ++ "page_%d.jpg\" -r200 -q \"" ++ In ++ "\" -c quit").
+-define(COMMAND(In, OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=jpeg  -sOutputFile=\"" ++ OutName ++ "page_%04d.jpg\" -r200 -q \"" ++ In ++ "\" -c quit").
 -define(COMMAND2(In, Out), "jpegtran -copy none -progressive -outfile \"" ++ Out ++ "\" \"" ++ In ++ "\"").
 
 run(File) -> run(File, []).
