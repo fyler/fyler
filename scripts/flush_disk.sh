@@ -30,7 +30,7 @@ exit 0
 
 fi
 
-find ${DIR} -mindepth 1 -maxdepth 1 -type d -mtime +1 -exec rm -R {} \;
+find ${DIR} -mindepth 1 -maxdepth 1 -type d -mtime +1 -exec sudo rm -R {} \;
 
 echo [$(date +"%Y-%m-%d %H:%M:%S")] Flush complete.
 
