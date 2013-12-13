@@ -446,7 +446,7 @@ parse_url(Path, Buckets) ->
       {IsAws, Bucket,Path2} = case re:run(Path, Re2, [{capture, all, list}]) of
         {match, [_, Bucket_, Path_]} ->
           {true, Bucket_, Path_};
-        _ -> {ok, Re3} = re:compile("[^:]+://s3\\-[^\\.]+\\.amazonaws\\.com/([^/]+)/(.+)"),
+        _ -> {ok, Re3} = re:compile("[^:]+://([^/\\.]+).s3\\-[^\\.]+\\.amazonaws\\.com/(.+)"),
           case re:run(Path, Re3, [{capture, all, list}]) of
             {match, [_, Bucket_, Path_]} -> {true, Bucket_, Path_};
             _ -> {false, false, Path}
@@ -469,7 +469,7 @@ parse_url_dir(Path, Bucket) ->
   {ok, Re2} = re:compile("[^:]+://" ++ Bucket ++ "\\.s3\\.amazonaws\\.com/(.+)"),
   case re:run(Path, Re2, [{capture, all, list}]) of
     {match, [_, Path2]} -> {true, Path2};
-    _ -> {ok, Re3} = re:compile("[^:]+://s3\\-[^\\.]+\\.amazonaws\\.com/([^/]+)/(.+)"),
+    _ -> {ok, Re3} = re:compile("[^:]+://([^/\\.]+).s3\\-[^\\.]+\\.amazonaws\\.com/(.+)"),
       case re:run(Path, Re3, [{capture, all, list}]) of
         {match, [_, Bucket, Path2]} -> {true, Path2};
         _ -> {false, Path}
@@ -493,16 +493,16 @@ path_to_test() ->
   ?assertEqual({false, false, "http://qwe/data.ext", "data", "ext"}, parse_url("http://qwe/data.ext", [])),
   ?assertEqual({false, false, "http://dev2.teachbase.ru/app/cpi.txt", "cpi", "txt"}, parse_url("http://dev2.teachbase.ru/app/cpi.txt", [])),
   ?assertEqual({false, false, "https://qwe/qwe/qwr/da.ta.ext", "da.ta", "ext"}, parse_url("https://qwe/qwe/qwr/da.ta.ext", ["qwo"])),
-  ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/da.ta.ext", ["qwe"])),
+  ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/da.ta.ext", ["qwe"])),
   ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3.amazonaws.com/da.ta.ext", ["qwe", "qwo"])),
-  ?assertEqual({true, "qwe", "qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", ["qwe"])),
-  ?assertEqual({false, false, "http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "q")),
+  ?assertEqual({true, "qwe", "qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext", ["qwe"])),
+  ?assertEqual({false, false, "http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext", "q")),
   ?assertEqual(false, parse_url("qwr/data.ext", [])).
 
 
 dir_url_test() ->
   ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("https://devtbupload.s3.amazonaws.com/recordings/2/record_17/stream_1/", "devtbupload")),
-  ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("http://s3-eu-west-1.amazonaws.com/devtbupload/recordings/2/record_17/stream_1/", "devtbupload")),
+  ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("http://devtbupload.s3-eu-west-1.amazonaws.com/recordings/2/record_17/stream_1/", "devtbupload")),
   ?assertEqual({false, "https://2.com/record_17/stream_1/"}, parse_url_dir("https://2.com/record_17/stream_1/", "devtbupload")).
 
 
