@@ -81,8 +81,8 @@ handle_info(process_start, #state{task = #task{type = Type, file = File, options
    end,
   {noreply, State#state{process = Pid}};
 
-handle_info({process_complete, Stats}, #state{task = #task{file = #file{is_aws = true, dir = Dir, url = Path, size = Size, target_dir = TargetDir}, type = Type} = Task, download_time = Time} = State) ->
-  UpTime = gen_server:call(fyler_pool,{move_to_aws,Dir,TargetDir},infinity),
+handle_info({process_complete, Stats}, #state{task = #task{file = #file{is_aws = true, bucket = Bucket, dir = Dir, url = Path, size = Size, target_dir = TargetDir}, type = Type} = Task, download_time = Time} = State) ->
+  UpTime = gen_server:call(fyler_pool,{move_to_aws,Bucket, Dir,TargetDir},infinity),
   gen_server:cast(fyler_pool,{task_completed,Task, Stats#job_stats{download_time = Time, upload_time = UpTime, file_path = Path, file_size = Size, status = success, task_type = Type, ts = ulitos:timestamp()}}),
   {stop, normal, State};
 

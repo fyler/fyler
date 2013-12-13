@@ -72,7 +72,7 @@ init(_Args) ->
 
   {ok, Http} = start_http_server(),
 
-  Bucket = ?Config(aws_s3_bucket, undefined),
+  Bucket = ?Config(aws_s3_bucket, []),
 
   {ok, #state{cowboy_pid = Http, storage_dir = Dir, aws_bucket = Bucket, aws_dir = ?Config(aws_dir, "fyler/")}}.
 
@@ -160,9 +160,9 @@ run_task(URL, Type, Options) ->
   gen_server:call(?MODULE, {run_task, URL, Type, Options}).
 
 
-handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage_dir = Dir, aws_bucket = Bucket, aws_dir = AwsDir, tasks_count = TCount} = State) ->
-  case parse_url(URL, Bucket) of
-    {IsAws, Path, Name, Ext} ->
+handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage_dir = Dir, aws_bucket = Buckets, aws_dir = AwsDir, tasks_count = TCount} = State) ->
+  case parse_url(URL, Buckets) of
+    {IsAws, Bucket, Path, Name, Ext} ->
       UniqueDir = uniqueId() ++ "_" ++ Name,
       DirId = Dir ++ UniqueDir,
       TmpName = DirId ++ "/" ++ Name ++ "." ++ Ext,
@@ -433,19 +433,32 @@ decriment_tasks_num(A, B, Node) ->
          end
   end.
 
+%%% @doc
+%%% @end
 
-parse_url(Path, Bucket) ->
+-spec parse_url(string(),list(string())) -> {IsAws::boolean(),Bucket::string()|boolean(), Path::string(),Name::string(),Ext::string()}.
+
+parse_url(Path, Buckets) ->
   {ok, Re} = re:compile("[^:]+://.+/([^/]+)\\.([^\\.]+)"),
   case re:run(Path, Re, [{capture, all, list}]) of
     {match, [_, Name, Ext]} ->
-      {ok, Re2} = re:compile("[^:]+://" ++ Bucket ++ "\\.s3\\.amazonaws\\.com/(.+)"),
-      case re:run(Path, Re2, [{capture, all, list}]) of
-        {match, [_, Path2]} -> {true, Bucket ++ "/" ++ Path2, Name, Ext};
+      {ok, Re2} = re:compile("[^:]+://([^\\.]+)\\.s3\\.amazonaws\\.com/(.+)"),
+      {IsAws, Bucket,Path2} = case re:run(Path, Re2, [{capture, all, list}]) of
+        {match, [_, Bucket_, Path_]} ->
+          {true, Bucket_, Path_};
         _ -> {ok, Re3} = re:compile("[^:]+://s3\\-[^\\.]+\\.amazonaws\\.com/([^/]+)/(.+)"),
           case re:run(Path, Re3, [{capture, all, list}]) of
-            {match, [_, Bucket, Path2]} -> {true, Bucket ++ "/" ++ Path2, Name, Ext};
-            _ -> {false, Path, Name, Ext}
+            {match, [_, Bucket_, Path_]} -> {true, Bucket_, Path_};
+            _ -> {false, false, Path}
           end
+      end,
+
+      case IsAws of
+        false -> {false,false,Path,Name,Ext};
+        _ -> case lists:member(Bucket,Buckets) of
+               true -> {true,Bucket,Bucket++"/"++Path2,Name,Ext};
+               false -> {false,false,Path,Name,Ext}
+             end
       end;
     _ ->
       false
@@ -477,13 +490,13 @@ uniqueId() ->
 
 
 path_to_test() ->
-  ?assertEqual({false, "http://qwe/data.ext", "data", "ext"}, parse_url("http://qwe/data.ext", [])),
-  ?assertEqual({false, "http://dev2.teachbase.ru/app/cpi.txt", "cpi", "txt"}, parse_url("http://dev2.teachbase.ru/app/cpi.txt", [])),
-  ?assertEqual({false, "https://qwe/qwe/qwr/da.ta.ext", "da.ta", "ext"}, parse_url("https://qwe/qwe/qwr/da.ta.ext", [])),
-  ?assertEqual({true, "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/da.ta.ext", "qwe")),
-  ?assertEqual({true, "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3.amazonaws.com/da.ta.ext", "qwe")),
-  ?assertEqual({true, "qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "qwe")),
-  ?assertEqual({false, "http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "q")),
+  ?assertEqual({false, false, "http://qwe/data.ext", "data", "ext"}, parse_url("http://qwe/data.ext", [])),
+  ?assertEqual({false, false, "http://dev2.teachbase.ru/app/cpi.txt", "cpi", "txt"}, parse_url("http://dev2.teachbase.ru/app/cpi.txt", [])),
+  ?assertEqual({false, false, "https://qwe/qwe/qwr/da.ta.ext", "da.ta", "ext"}, parse_url("https://qwe/qwe/qwr/da.ta.ext", ["qwo"])),
+  ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/da.ta.ext", ["qwe"])),
+  ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3.amazonaws.com/da.ta.ext", ["qwe", "qwo"])),
+  ?assertEqual({true, "qwe", "qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", ["qwe"])),
+  ?assertEqual({false, false, "http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://s3-eu-west-1.amazonaws.com/qwe/path/to/object/da.ta.ext", "q")),
   ?assertEqual(false, parse_url("qwr/data.ext", [])).
 
 
