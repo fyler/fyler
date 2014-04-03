@@ -29,12 +29,13 @@ stats_to_pg_string(#job_stats{status=Status,
   file_size = Size,
   file_path = Path,
   time_spent = Time,
+  error_msg = Error,
   result_path = Results,
   task_type = Type}) ->
 
   ResultsList = ulitos:join([binary_to_list(R) || R<-Results],","),
 
-  "'"++atom_to_list(Status)++"',"++integer_to_list(to_int(DTime))++","++integer_to_list(to_int(UTime))++","++integer_to_list(to_int(Size))++",'"++Path++"',"++integer_to_list(to_int(Time))++",'"++ResultsList++"','"++atom_to_list(Type)++"','Error'".
+  "'"++atom_to_list(Status)++"',"++integer_to_list(to_int(DTime))++","++integer_to_list(to_int(UTime))++","++integer_to_list(to_int(Size))++",'"++Path++"',"++integer_to_list(to_int(Time))++",'"++ResultsList++"','"++atom_to_list(Type)++"','"++error_to_s(Error)++"'".
 
 
 %% @doc Convert epgsql time fromat to number.
@@ -59,6 +60,20 @@ pad(N) -> integer_to_list(N).
 to_int(undefined) -> 0;
 
 to_int(N) -> N.
+
+error_to_s(Er) when is_list(Er) ->
+  Er;
+
+error_to_s(Er) when is_binary(Er) ->
+  binary_to_list(Er);
+
+error_to_s({error,Reason}) ->
+  error_to_s(Reason);
+
+error_to_s(_) ->
+  "Error".
+
+
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").

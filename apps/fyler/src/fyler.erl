@@ -11,8 +11,7 @@ start() ->
   application:start(fyler).
 
 stop() ->
-  application:stop(fyler),
-  ulitos_app:stop_apps(?APPS).
+  application:stop(fyler).
 
 upgrade() ->
  ulitos_app:reload(fyler),

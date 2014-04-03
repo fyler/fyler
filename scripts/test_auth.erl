@@ -20,4 +20,4 @@ send(Login,Pass) ->
   io:format("Response: ~p~n Body:~p~n",[R,B]).
 
 body(Login,Pass) ->
-  "login="++Login++"&pass="++ulitos:binary_to_hex(crypto:hash(md5,Pass)).
+  "login="++Login++"&pass="++Pass.

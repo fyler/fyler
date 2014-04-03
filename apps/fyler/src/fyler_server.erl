@@ -54,6 +54,7 @@
 
 %% API
 start_link() ->
+  ?D("Starting fyler webserver"),
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init(_Args) ->
@@ -62,7 +63,7 @@ init(_Args) ->
 
   ulitos_app:ensure_started(?APPS),
 
-  ?D("Starting fyler webserver"),
+  ?D("fyler webserver started"),
 
   Dir = ?Config(storage_dir, "ff"),
 
@@ -198,7 +199,7 @@ handle_call(create_session, _From, #state{} = State) ->
 handle_call({is_authorized, Token}, _From, #state{} = State) ->
   Reply = case ets:lookup(?T_SESSIONS, Token) of
             [#ets_session{}] -> true;
-            _ -> false
+            _ -> {false,<<"">>}
           end,
   {reply, Reply, State};
 
@@ -380,7 +381,10 @@ start_http_server() ->
 %% todo: more intelligent logic)
 %% @end
 
--spec choose_pool(list(#pool{})) -> #pool{}.
+-spec choose_pool(list(#pool{})) -> #pool{}|undefined.
+
+choose_pool([]) ->
+  undefined;
 
 choose_pool(Pools) ->
   hd(lists:keysort(#pool.active_tasks_num, Pools)).
@@ -562,7 +566,8 @@ authorization_test_() ->
 
 
 start_server_() ->
-  ok = application:start(fyler).
+  ok = application:start(fyler),
+  application:set_env(fyler,auth_pass,ulitos:binary_to_hex(crypto:hash(md5, "test"))).
 
 
 stop_server_(_) ->
@@ -570,25 +575,25 @@ stop_server_(_) ->
 
 
 add_session_t_() ->
-  P = ulitos:binary_to_hex(crypto:hash(md5, ?Config(auth_pass, ""))),
+  P = "test",
   ?_assertMatch({ok, _}, fyler_server:authorize(list_to_binary(?Config(auth_login, "")), list_to_binary(P))).
 
 
 wrong_login_t_() ->
-  P = ulitos:binary_to_hex(crypto:hash(md5, ?Config(auth_pass, ""))),
+  P = "test",
   ?_assertEqual(false, fyler_server:authorize(<<"badlogin">>, list_to_binary(P))).
 
 wrong_pass_t_() ->
-  P = ulitos:binary_to_hex(crypto:hash(md5, "wqe")),
+  P = "wqe",
   ?_assertEqual(false, fyler_server:authorize(?Config(auth_login, ""), list_to_binary(P))).
 
 is_authorized_t_() ->
-  P = ulitos:binary_to_hex(crypto:hash(md5, ?Config(auth_pass, ""))),
+  P = "test",
   {ok, Token} = fyler_server:authorize(list_to_binary(?Config(auth_login, "")), list_to_binary(P)),
   ?_assertEqual(true, fyler_server:is_authorized(list_to_binary(Token))).
 
 is_authorized_failed_t_() ->
-  ?_assertEqual(false, fyler_server:is_authorized(<<"123456">>)).
+  ?_assertMatch({false,_}, fyler_server:is_authorized(<<"123456">>)).
 
 
 -endif.

@@ -18,11 +18,12 @@ init({tcp, http}, _Req, _Opts) ->
 
 is_authorized(Req,State) ->
   Reply = case cowboy_req:body_qs(Req) of
-    {ok, X, _} -> case proplists:get_value(<<"fkey">>,X) of
-                    undefined -> false;
+    {ok, X, _} -> ?D({req_data,X}),
+                  case proplists:get_value(<<"fkey">>,X) of
+                    undefined -> {false,<<"">>};
                     Key -> fyler_server:is_authorized(Key)
                   end;
-            _ -> false
+            _ -> {false,<<"">>}
               end,
   {Reply,Req,State}.
 
@@ -39,15 +40,26 @@ to_json(Req,State) ->
   {true,Req,State}.
 
 process_post(Req, State) ->
-  case cowboy_req:body_qs(Req) of
+  Resp = case cowboy_req:body_qs(Req) of
     {ok, X, _} ->
       case validate_post_data(X) of
-        [Url, Type, Options] -> ?D({post_data, Url, Type}), fyler_server:run_task(Url, Type, Options);
-        false -> ?D(<<"wrong post data">>)
+        [Url, Type, Options] -> 
+          ?D({post_data, Url, Type}), 
+          case fyler_server:run_task(Url, Type, Options) of
+            ok -> cowboy_req:set_resp_body(<<"ok">>, Req);
+            _ -> {ok,Resp_} = cowboy_req:reply(403,Req),
+                  Resp_
+          end;
+        false -> ?D(<<"wrong post data">>),
+                  {ok,Resp_} = cowboy_req:reply(403,Req),
+                  Resp_
       end;
-    _ -> ?D(<<"no data">>)
+    Else -> 
+      ?D({<<"no data">>,Else}),
+      {ok,Resp_} = cowboy_req:reply(403,Req),
+      Resp_
   end,
-  {true, Req, State}.
+  {true, Resp, State}.
 
 validate_post_data(Data) ->
   ?D(Data),
