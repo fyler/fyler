@@ -22,6 +22,7 @@ start_link(#task{} = Task) ->
 -record(state, {
   task :: task(),
   process :: pid(),
+  stats ::stats(),
   download_time :: non_neg_integer()
 }).
 
@@ -52,7 +53,7 @@ handle_info(download, #state{task = #task{file = #file{url = Path, tmp_path = Tm
   {noreply, State#state{task = Task#task{file = File#file{size = Size}}, download_time = Time}};
 
 
-handle_info(download, #state{task = #task{file = #file{url = Path}} = State) ->
+handle_info(download, #state{task = #task{file = #file{url = Path}}} = State) ->
   self() ! {error, {non_aws_download, Path}},
   {noreply, State};
 
@@ -60,19 +61,24 @@ handle_info(process_start, #state{task = #task{type = Type, file = File, options
   Self = self(),
   Pid = case erlang:function_exported(Type,run,2) of
     true ->
+      ?D({start_processing, File#file.name}),
     spawn_link(fun() ->
       case erlang:apply(Type, run, [File, Opts]) of
         {ok, Stats} -> Self ! {process_complete, Stats};
         {error, Reason} -> Self ! {error, Reason}
       end
     end);
-    false -> self() ! {error, function_not_found},
+    false -> self() ! {error, handler_not_found},
              undefined
    end,
   {noreply, State#state{process = Pid}};
 
-handle_info({process_complete, Stats}, #state{task = #task{file = #file{is_aws = true, bucket = Bucket, dir = Dir, url = Path, size = Size, target_dir = TargetDir}, type = Type} = Task, download_time = Time} = State) ->
-  UpTime = gen_server:call(fyler_pool,{move_to_aws,Bucket, Dir,TargetDir},infinity),
+handle_info({process_complete, Stats}, #state{task = #task{file = #file{name = Name, is_aws = true, bucket = Bucket, dir = Dir, target_dir = TargetDir}, acl = Acl}} = State) ->
+  ?D({start_upload_processed_file, Name, TargetDir}),
+  fyler_uploader:upload_to_aws(Bucket, Dir, TargetDir, Acl, self()),
+  {noreply, State#state{stats = Stats}};
+
+handle_info({upload_complete, UpTime}, #state{stats=Stats,task = #task{file = #file{url = Path, size = Size}, type = Type} = Task, download_time = Time} = State) ->
   gen_server:cast(fyler_pool,{task_completed,Task, Stats#job_stats{download_time = Time, upload_time = UpTime, file_path = Path, file_size = Size, status = success, task_type = Type, ts = ulitos:timestamp()}}),
   {stop, normal, State};
 

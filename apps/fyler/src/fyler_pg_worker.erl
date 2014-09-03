@@ -18,10 +18,19 @@ init(_) ->
   Database = ?Config(pg_db, false),
   Username = ?Config(pg_user, false),
   Password = ?Config(pg_pass, false),
-  {ok, Conn} = pgsql:connect(Hostname, Username, Password, [
-    {database, Database}
-  ]),
+  Conn = case Database of
+    false -> ?D({no_database}), false;
+    _ ->
+      {ok, Connection} = pgsql:connect(Hostname, Username, Password, [
+        {database, Database}
+      ]),
+      Connection
+  end,
   {ok, #state{conn=Conn}}.
+
+
+handle_call(_, _, #state{conn = false}=State) ->
+  {reply, false, State};
 
 handle_call({squery, Sql}, _From, #state{conn=Conn}=State) ->
   {reply, pgsql:squery(Conn, Sql), State};
@@ -35,6 +44,9 @@ handle_cast(_Msg, State) ->
 
 handle_info(_Info, State) ->
   {noreply, State}.
+
+terminate(_,#state{conn = false}) ->
+  ok;
 
 terminate(_Reason, #state{conn=Conn}) ->
   ok = pgsql:close(Conn),

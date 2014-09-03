@@ -117,9 +117,11 @@ handle_cast(_Msg, State) ->
 handle_info(next_task,#state{queue = Queue} = State) ->
   NewState = case queue:out(Queue) of
     {empty,_} -> ?D(no_more_tasks), State;
-    {{value,Task},Queue2} -> {reply,_,State_} = handle_task(Task,State#state{queue = Queue2}),
-                             self() ! next_task,
-                             State_
+    {{value,Task},Queue2} -> 
+      ?D({uploader_task, Task}),
+      {reply,_,State_} = handle_task(Task,State#state{queue = Queue2}),
+      self() ! next_task,
+      State_
   end,
   {noreply,NewState};
 
@@ -138,10 +140,13 @@ handle_task({upload,Bucket,Dir,TargetDir,Acl,Handler}, State) ->
   Reply = case filelib:is_dir(Dir) of
             true -> AWSPath = ?AWS_URL(Bucket,TargetDir),
               Start = ulitos:timestamp(),
+              ?D({start_upload,AWSPath}),
               Res = aws_cli:copy_folder(Dir,AWSPath,Acl),
               UpTime = ulitos:timestamp() - Start,
+              ?D({upload_complete, UpTime}),
               case aws_cli:dir_exists(AWSPath) of
                 true ->
+                  ?D({cleanup, Dir}),
                   ulitos_file:recursively_del_dir(Dir),
                   {upload_complete, UpTime};
                 false -> 

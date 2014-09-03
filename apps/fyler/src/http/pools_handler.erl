@@ -12,7 +12,7 @@ init({tcp, http}, Req, _Opts) ->
   {ok, Req, undefined_state}.
 
 handle(Req, State) ->
-  {ok, HTML} = pools_tpl:render([{records, [lists:zip(record_info(fields, pool), tl(tuple_to_list(R))) || R <- fyler_server:pools()]}]),
+  {ok, HTML} = jiffy:encode(fyler_server:pools()),
   {ok, Req2} = cowboy_req:reply(200, [], HTML, Req),
   {ok, Req2, State}.
 

@@ -5,9 +5,12 @@
 -include("../fyler.hrl").
 -include("../../include/log.hrl").
 
--export([run/1, run/2]).
+-export([run/1, run/2,category/0]).
 
 -define(COMMAND(In,OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m -dFirstPage=1 -dLastPage=1 -sOutputFile=\""++OutName++"\" -r15 -q \""++In++"\" -c quit").
+
+category() ->
+  document.
 
 run(File) -> run(File,[]).
 

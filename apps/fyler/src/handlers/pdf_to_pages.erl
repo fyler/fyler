@@ -5,10 +5,13 @@
 -include("../fyler.hrl").
 -include("../../include/log.hrl").
 
--export([run/1, run/2]).
+-export([run/1, run/2,category/0]).
 
 -define(COMMAND(In, OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=jpeg  -sOutputFile=\"" ++ OutName ++ "page_%04d.jpg\" -r200 -q \"" ++ In ++ "\" -c quit").
 -define(COMMAND2(In, Out), "jpegtran -copy none -progressive -outfile \"" ++ Out ++ "\" \"" ++ In ++ "\"").
+
+category() ->
+  document.
 
 run(File) -> run(File, []).
 

@@ -2,8 +2,45 @@
 -include("fyler.hrl").
 
 %% API
--export([task_record_to_proplist/1, stats_to_pg_string/1]).
+-export([
+  task_record_to_proplist/1, 
+  stats_to_pg_string/1,
+  stats_to_proplist/1,
+  current_task_to_proplist/1,
+  pool_to_proplist/1
+  ]).
 
+
+stats_to_proplist(#job_stats{status=Status,
+  download_time = DTime,
+  upload_time = UTime,
+  file_size = Size,
+  file_path = Path,
+  time_spent = Time,
+  error_msg = Error,
+  task_type = Type}) ->
+  [
+  {status, Status}, 
+  {download_time, DTime},
+  {upload_time, UTime},
+  {file_size, Size},
+  {file_path, Path},
+  {time_spent, Time},
+  {task_type, Type},
+  {error, error_to_s(Error)}].
+
+
+current_task_to_proplist(#current_task{id=Id, status=Status, url=Url, type = Type, pool = Pool}) ->
+  [
+    {id, Id},
+    {status, Status},
+    {url, Url},
+    {type, Type},
+    {pool,Pool}
+  ].
+
+pool_to_proplist(#pool{node = Node, category = Type, enabled = Enabled, active_tasks_num = Active, total_tasks = Total}) ->
+  [{node, Node}, {category, Type}, {enabled, Enabled}, {active_tasks, Active}, {total, Total}]. 
 
 
 %% @doc

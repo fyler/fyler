@@ -37,10 +37,10 @@ handlers:
 	scripts/gen_handlers_list.erl
 
 run-server:
-	ERL_LIBS=apps:..:deps erl -args_file files/vm.args.sample -sasl errlog_type error -boot  start_sasl -s $(APPNAME) -embedded -config files/app.config  -fyler role server
+	ERL_LIBS=apps:deps erl -args_file files/vm.args.sample -sasl errlog_type error -boot  start_sasl -s $(APPNAME) -embedded -config files/app.config  -fyler role server
 
 run-pool:
-	ERL_LIBS=apps:..:deps erl -args_file files/vm.args.sample -sasl errlog_type error -boot start_sasl -s $(APPNAME) -embedded -config files/app.config  -fyler role pool
+	ERL_LIBS=apps:deps erl -args_file files/vm.args.pool.sample -sasl errlog_type error -boot start_sasl -s $(APPNAME) -embedded -config files/app.config  -fyler role pool
 
 clean-tmp:
 	cd tmp && ls | xargs rm && cd ..

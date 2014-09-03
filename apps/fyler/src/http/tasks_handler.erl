@@ -12,8 +12,7 @@ init({tcp, http}, Req, _Opts) ->
   {ok, Req, undefined_state}.
 
 handle(Req, State) ->
-  Records = fyler_server:tasks_stats(),
-  {ok, HTML} = tasks_tpl:render([{records, [lists:zip(record_info(fields, job_stats), tl(tuple_to_list(R))) || R <- Records]}]),
+  {ok, HTML} = jiffy:encode(fyler_server:tasks_stats()),
   {ok, Req2} = cowboy_req:reply(200, [], HTML, Req),
   {ok, Req2, State}.
 

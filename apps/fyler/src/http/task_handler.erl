@@ -64,7 +64,6 @@ process_post(Req, State) ->
 validate_post_data(Data) ->
   ?D(Data),
   Keys = [<<"url">>, <<"type">>],
-  %%Opts = [<<"callback">>,<<"split">>,<<"target_dir">>],
   Opts = proplists:get_keys(Data),
   BinData = [proplists:get_value(Key, Data) || Key <- Keys],
   Options = [{binary_to_atom(Opt,latin1),proplists:get_value(Opt, Data)} || Opt <- Opts],

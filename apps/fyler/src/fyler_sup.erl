@@ -73,7 +73,6 @@ init([]) ->
 
 init([pool]) ->
   Children = [
-    ?CHILD(fyler_pool,worker),
     ?CHILD(fyler_monitor,worker),
     ?CHILD(fyler_uploader,worker),
     {worker_sup,
@@ -82,7 +81,8 @@ init([pool]) ->
       infinity,
       supervisor,
       []
-    }
+    },
+    ?CHILD(fyler_pool,worker)
   ],
   {ok, { {one_for_one, 5, 10}, Children} }.
 

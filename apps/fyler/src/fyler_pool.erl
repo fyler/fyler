@@ -34,6 +34,7 @@ start_link() ->
   connected = false ::false|true|pending,
   storage_dir :: string(),
   aws_bucket :: string(),
+  max_active = 1 ::non_neg_integer(),
   tasks = queue:new() :: queue:queue(task()),
   active_tasks = [] :: list(task()),
   finished_tasks = [] ::list({atom(),task(),stats()})
@@ -58,7 +59,7 @@ init(_Args) ->
 
   ulitos_app:ensure_loaded(?Handlers),
 
-  {ok, #state{storage_dir = Dir ++ "/",  server_node = Server}}.
+  {ok, #state{storage_dir = Dir,  category = ?Config(category,undefined), server_node = Server, max_active = ?Config(max_active,1)}}.
 
 
 %% @doc
@@ -90,6 +91,7 @@ enable() ->
 
 
 handle_call({run_task, Task}, _From, #state{enabled = Enabled, tasks = Tasks} = State) ->
+  fyler_monitor:start_monitor(),
   NewTasks = queue:in(Task, Tasks),
   if Enabled
     -> self() ! next_task;
@@ -120,15 +122,6 @@ handle_call({enabled, false}, _From, #state{enabled = true,connected = Connected
 handle_call({enabled, true}, _From, #state{enabled = true} = State) -> {reply, false, State};
 handle_call({enabled, false}, _From, #state{enabled = false} = State) -> {reply, false, State};
 
-handle_call({move_to_aws, Bucket, DirName, []}, _From, State) ->
-  Start = ulitos:timestamp(),
-  aws_cli:copy_folder(DirName, "s3://" ++ Bucket ++ "/" ++ DirName),
-  {reply, ulitos:timestamp() - Start, State};
-
-handle_call({move_to_aws, Bucket, DirName,TargetDir}, _From, State) ->
-  Start = ulitos:timestamp(),
-  aws_cli:copy_folder(DirName, "s3://" ++ Bucket ++ "/" ++ TargetDir),
-  {reply, ulitos:timestamp() - Start, State};
 
 handle_call(_Request, _From, State) ->
   ?D(_Request),
@@ -155,37 +148,48 @@ handle_cast(_Request, State) ->
   {noreply, State}.
 
 handle_info(pool_accepted,#state{finished_tasks = Finished} = State) ->
-  fyler_monitor:start_monitor(),
   [gen_server:cast(self(),T) || T <- Finished],
   {noreply,State#state{connected = true, finished_tasks = []}};
 
 
-handle_info(connect_to_server, #state{server_node = Node,enabled = Enabled,active_tasks = Tasks} = State) ->
+handle_info(connect_to_server, #state{server_node = Node, category = Category, enabled = Enabled,active_tasks = Tasks} = State) ->
   Connected = case net_kernel:connect(Node) of
                 true ->
-                  {fyler_server,Node} ! {pool_connected,node(),Enabled,length(Tasks)},
+                  {fyler_server,Node} ! {pool_connected,node(),Category,Enabled,length(Tasks)},
                   pending;
-                _ -> ?D(server_no_found),
+                _ -> ?D(server_not_found),
                       erlang:send_after(?POLL_SERVER_TIMEOUT,self(),connect_to_server),
                       false
               end,
   {noreply,State#state{connected = Connected}};
 
 
-handle_info(next_task, #state{tasks = Tasks, active_tasks = Active} = State) ->
+handle_info(next_task, #state{tasks = Tasks, active_tasks = Active, storage_dir = Dir} = State) ->
   {NewTasks, NewActive} = case queue:out(Tasks) of
                             {empty, _} -> {Tasks, Active};
-                            {{value, #task{file=#file{dir = Dir}}=Task}, Tasks2} ->
-                              ok = file:make_dir(Dir),
-                              {ok, Pid} = fyler_sup:start_worker(Task),
+                            {{value, #task{file=#file{dir = UniqDir, tmp_path = Path}=File}=Task}, Tasks2} ->
+                              TmpDir = filename:join(Dir, UniqDir),
+                              
+                              case file:make_dir(TmpDir) of
+                                ok -> ok;
+                                {error, eexist} -> ok
+                              end,
+                              
+                              NewTask = Task#task{file=File#file{dir = TmpDir, tmp_path = filename:join(Dir,Path)}},
+                              {ok, Pid} = fyler_sup:start_worker(NewTask),
                               Ref = erlang:monitor(process, Pid),
-                              Active2 = lists:keystore(Ref, #task.worker, Active, Task#task{worker = Ref}),
+                              Active2 = lists:keystore(Ref, #task.worker, Active, NewTask#task{worker = Ref}),
                               {Tasks2, Active2}
                           end,
   {noreply, State#state{active_tasks = NewActive, tasks = NewTasks}};
 
 
 handle_info(try_next_task, #state{enabled = false} = State) ->
+  {noreply, State};
+
+handle_info(try_next_task, #state{max_active = Max, active_tasks = Active} = State) when Max =< length(Active) ->
+  ?D({pool_is_busy}),
+  erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task),
   {noreply, State};
 
 handle_info(try_next_task, #state{tasks = Tasks} = State) ->

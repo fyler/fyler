@@ -5,7 +5,10 @@
 -include("../fyler.hrl").
 -include("../../include/log.hrl").
 
--export([run/1, run/2]).
+-export([run/1, run/2,category/0]).
+
+category() ->
+  document.
 
 -define(COMMAND(In,OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m  -sOutputFile=\""++OutName++"thumb_%04d.png\" -r15 -q \""++In++"\" -c quit").
 

@@ -5,7 +5,10 @@
 -include("../fyler.hrl").
 -include("../../include/log.hrl").
 
--export([run/1, run/2]).
+-export([run/1, run/2,category/0]).
+
+category() ->
+ video.
 
 -define(COMMAND(In,Out),
   "ffmpeg -i "++In++" -c:v libx264 -g 15 -keyint_min 15 -c:a libfaac -ac 2 -ar 48000 -ab 192k -profile:v baseline -hls_time 10 -hls_list_size 999 "++Out).

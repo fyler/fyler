@@ -5,10 +5,12 @@
 -include("../fyler.hrl").
 -include("../../include/log.hrl").
 
--export([run/1,run/2]).
+-export([run/1,run/2,category/0]).
+
+category() ->
+  document.
 
 run(File) -> run(File,[]).
-
 
 run(#file{name = Name, dir = Dir} = File,Opts) ->
   Start = ulitos:timestamp(),

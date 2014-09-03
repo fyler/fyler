@@ -5,6 +5,8 @@
 
 -define(T_STATS,fyler_live_statistics).
 
+-define (T_POOLS, fyler_pools).
+
 -define(PG_POOL,fyler_pg_pool).
 
 -record(file,{
@@ -25,6 +27,8 @@
   id ::non_neg_integer(),
   type ::atom(),
   category ::atom(),
+  acl = public ::atom(),
+  priority = normal ::low|normal|high,
   file ::file(),
   callback = undefined ::binary(),
   worker ::reference(),
