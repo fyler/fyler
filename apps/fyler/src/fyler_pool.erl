@@ -29,11 +29,12 @@ start_link() ->
 %% gen_server callbacks
 -record(state, {
   enabled = true :: boolean(),
+  category ::atom(),
   server_node ::atom(),
   connected = false ::false|true|pending,
   storage_dir :: string(),
   aws_bucket :: string(),
-  tasks = queue:new() :: queue(),
+  tasks = queue:new() :: queue:queue(task()),
   active_tasks = [] :: list(task()),
   finished_tasks = [] ::list({atom(),task(),stats()})
 }).
@@ -41,6 +42,7 @@ start_link() ->
 init(_Args) ->
   net_kernel:monitor_nodes(true),
   ulitos_app:ensure_started(?APPS),
+
   ?D("Starting fyler pool"),
   Dir = ?Config(storage_dir, "ff"),
   ok = filelib:ensure_dir(Dir),
@@ -48,8 +50,8 @@ init(_Args) ->
     ok -> ok;
     {error,eexist} -> ok
   end,
+  
   Server = ?Config(server_name,null),
-
   ?D({server,Server}),
 
   self() ! connect_to_server,
@@ -153,6 +155,7 @@ handle_cast(_Request, State) ->
   {noreply, State}.
 
 handle_info(pool_accepted,#state{finished_tasks = Finished} = State) ->
+  fyler_monitor:start_monitor(),
   [gen_server:cast(self(),T) || T <- Finished],
   {noreply,State#state{connected = true, finished_tasks = []}};
 
@@ -171,9 +174,8 @@ handle_info(connect_to_server, #state{server_node = Node,enabled = Enabled,activ
 
 handle_info(next_task, #state{tasks = Tasks, active_tasks = Active} = State) ->
   {NewTasks, NewActive} = case queue:out(Tasks) of
-                            {empty, _} -> fyler_monitor:stop_monitor(),
-                              {Tasks, Active};
-                            {{value, #task{file=#file{dir = Dir}}=Task}, Tasks2} -> fyler_monitor:start_monitor(),
+                            {empty, _} -> {Tasks, Active};
+                            {{value, #task{file=#file{dir = Dir}}=Task}, Tasks2} ->
                               ok = file:make_dir(Dir),
                               {ok, Pid} = fyler_sup:start_worker(Task),
                               Ref = erlang:monitor(process, Pid),
@@ -221,6 +223,7 @@ handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, activ
 
 
 handle_info({nodedown,Node},#state{server_node = Node}=State) ->
+  fyler_monitor:stop_monitor(),
   erlang:send_after(?POLL_SERVER_TIMEOUT, self(), connect_to_server),
   {noreply,State#state{connected = false}};
 

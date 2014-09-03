@@ -41,14 +41,13 @@
 %% gen_server callbacks
 -record(state, {
   cowboy_pid :: pid(),
-  storage_dir :: string(),
   aws_bucket :: string(),
   aws_dir :: string(),
   pools_active = [] :: list(),
   pools_busy = [] :: list(),
   busy_timer_ref = undefined,
   tasks_count = 1 :: non_neg_integer(),
-  tasks = queue:new() :: queue()
+  tasks = queue:new() :: queue:queue(task())
 }).
 
 
@@ -65,17 +64,15 @@ init(_Args) ->
 
   ?D("fyler webserver started"),
 
-  Dir = ?Config(storage_dir, "ff"),
-
   ets:new(?T_STATS, [public, named_table, {keypos, #current_task.id}]),
 
   ets:new(?T_SESSIONS, [private, named_table, {keypos, #ets_session.session_id}]),
 
   {ok, Http} = start_http_server(),
 
-  Bucket = ?Config(aws_s3_bucket, []),
+  Buckets = ?Config(aws_s3_bucket, []),
 
-  {ok, #state{cowboy_pid = Http, storage_dir = Dir, aws_bucket = Bucket, aws_dir = ?Config(aws_dir, "fyler/")}}.
+  {ok, #state{cowboy_pid = Http, aws_bucket = Buckets, aws_dir = ?Config(aws_dir, "fyler/")}}.
 
 
 %% @doc
@@ -161,22 +158,22 @@ run_task(URL, Type, Options) ->
   gen_server:call(?MODULE, {run_task, URL, Type, Options}).
 
 
-handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage_dir = Dir, aws_bucket = Buckets, aws_dir = AwsDir, tasks_count = TCount} = State) ->
+handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_bucket = Buckets, aws_dir = AwsDir, tasks_count = TCount} = State) ->
   case parse_url(URL, Buckets) of
-    {IsAws, Bucket, Path, Name, Ext} ->
+    {true, Bucket, Path, Name, Ext} ->
       UniqueDir = uniqueId() ++ "_" ++ Name,
-      DirId = Dir ++ UniqueDir,
-      TmpName = DirId ++ "/" ++ Name ++ "." ++ Ext,
+      TmpName = filename:join(UniqueDir, Name ++ "." ++ Ext),
+
       ?D(Options),
       Callback = proplists:get_value(callback, Options, undefined),
       TargetDir = case proplists:get_value(target_dir, Options) of
-                    undefined -> AwsDir ++ UniqueDir;
-                    TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Bucket) of
+                    undefined -> filename:join(AwsDir,UniqueDir);
+                    TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Buckets) of
                                     {true, TargetPath} -> TargetPath;
-                                    _ -> ?D(wrong_target_dir), AwsDir ++ UniqueDir
+                                    _ -> ?D(wrong_target_dir, TargetDir_), filename:join(AwsDir,UniqueDir)
                                   end
                   end,
-      Task = #task{id = TCount, type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = IsAws, url = Path, name = Name, dir = DirId, tmp_path = TmpName}},
+      Task = #task{id = TCount, type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = true, url = Path, name = Name, dir = UniqueDir, tmp_path = TmpName}},
       NewTasks = queue:in(Task, Tasks),
 
       ets:insert(?T_STATS, #current_task{id = TCount, type = list_to_atom(Type), url = Path, status = queued}),
@@ -344,27 +341,14 @@ send_response(#task{callback = Callback}, _, failed) ->
 
 
 start_http_server() ->
-
-  Static = fun(Filetype) ->
-    {lists:append(["/", Filetype, "/[...]"]), cowboy_static, [
-      {directory, {priv_dir, fyler, [list_to_binary(Filetype)]}},
-      {mimetypes, {fun mimetypes:path_to_mimes/2, default}}
-    ]}
-  end,
-
   Dispatch = cowboy_router:compile([
     {'_', [
-      Static("css"),
-      Static("js"),
-      Static("img"),
       {"/", index_handler, []},
       {"/stats", stats_handler, []},
       {"/tasks", tasks_handler, []},
       {"/pools", pools_handler, []},
       {"/api/auth", auth_handler, []},
       {"/api/tasks", task_handler, []},
-      %% NOTE: only for deployment    {"/api/call/:call", call_handler, []},
-      {"/loopback", loopback_handler, []},
       {'_', notfound_handler, []}
     ]}
   ]),
@@ -393,7 +377,7 @@ choose_pool(Pools) ->
 %% Add tasks to the queue again.
 %% @end
 
--spec restart_tasks(list(#current_task{}), queue()) -> queue().
+-spec restart_tasks(list(#current_task{}), queue:queue()) -> queue:queue().
 
 restart_tasks([], Tasks) -> ?I("All tasks restarted."), Tasks;
 

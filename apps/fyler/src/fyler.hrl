@@ -24,6 +24,7 @@
 -record(task,{
   id ::non_neg_integer(),
   type ::atom(),
+  category ::atom(),
   file ::file(),
   callback = undefined ::binary(),
   worker ::reference(),
@@ -37,6 +38,7 @@
   status ::queued|progress,
   task ::task(),
   type ::atom(),
+  category ::atom(),
   pool ::atom(),
   url ::string()
 }).
@@ -70,6 +72,7 @@
 
 -record(pool, {
   node :: atom(),
+  category :: atom(),
   enabled :: boolean(),
   active_tasks_num =0 :: non_neg_integer(),
   total_tasks = 0 ::non_neg_integer()

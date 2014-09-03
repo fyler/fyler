@@ -75,6 +75,7 @@ init([pool]) ->
   Children = [
     ?CHILD(fyler_pool,worker),
     ?CHILD(fyler_monitor,worker),
+    ?CHILD(fyler_uploader,worker),
     {worker_sup,
       {supervisor,start_link,[{local, worker_sup}, ?MODULE, [worker]]},
       permanent,
