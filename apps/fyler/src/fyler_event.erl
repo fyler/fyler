@@ -17,7 +17,7 @@
 %% gen_event callbacks
 -export([init/1, handle_call/2, handle_event/2, handle_info/2, terminate/2, code_change/3]).
 
--export([task_completed/2,task_failed/2, pool_enabled/0,pool_disabled/0]).
+-export([task_completed/2, task_started/1,  task_failed/2, pool_enabled/0,pool_disabled/0]).
 
 start_link() ->
   ?D(start_fevent),
@@ -62,12 +62,13 @@ remove_handler(Handler) ->
   gen_event:delete_handler({global, ?MODULE}, Handler,[]).
 
 
+task_started(Task) ->
+  gen_event:notify({global, ?MODULE}, #fevent{type = started, node=node(), task = Task}).
+
 %% @doc Send when task job is finished successfully.
 %% @end
-
-
 task_completed(Task, Stats) ->
-  gen_event:notify({global, ?MODULE}, #fevent{type = complete, node=node(), task = Task,stats = Stats}).
+  gen_event:notify({global, ?MODULE}, #fevent{type = complete, node=node(), task = Task, stats = Stats}).
 
 %% @doc Send when task job is failed.
 %% @end

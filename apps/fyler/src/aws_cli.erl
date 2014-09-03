@@ -7,24 +7,22 @@
 -define(NOT_EXISTS_SIZE,87).
 
 %% API
--export([copy_object/2, copy_folder/2, dir_exists/1]).
+-export([copy_object/2, copy_object/3, copy_folder/2, copy_folder/3, dir_exists/1]).
 
-
-%% @doc
-%% @end
--spec copy_object(string(),string()) ->  any().
 
 copy_object(From,To) ->
-  ?D({aws_command,"aws s3 cp --acl public-read "++From++" "++To}),
-  os:cmd("aws s3 cp --acl public-read "++From++" "++To).
+  copy_object(From,To,public).
 
-%% @doc
-%% @end
--spec copy_folder(string(),string()) ->  any().
+-spec copy_object(string(),string(),any()) -> any().
+copy_object(From,To,Acl) ->
+  os:cmd(io_lib:format("aws s3 cp --acl ~s ~s ~s",[access_to_acl(Acl),From,To])).
 
 copy_folder(From,To) ->
-  ?D({aws_command,"aws s3 sync --acl public-read "++From++" "++To}),
-  os:cmd("aws s3 sync  --acl public-read "++From++" "++To).
+  copy_folder(From,To,public).
+
+-spec copy_folder(string(),string(),any()) -> any().
+copy_folder(From,To,Acl) ->
+  os:cmd(io_lib:format("aws s3 sync --acl ~s ~s ~s",[access_to_acl(Acl),From,To])).
 
 %% @doc
 %% Check whether s3 dir prefix exists.
@@ -36,24 +34,18 @@ copy_folder(From,To) ->
 -spec dir_exists(Path::list()) -> boolean().
 
 dir_exists(Path) ->
-  ?D({aws_command,"aws s3 ls "++Path}),
   Res = os:cmd("aws s3 ls "++Path),
   length(Res)-length(Path) > ?NOT_EXISTS_SIZE.
 
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
 
+access_to_acl(private) ->
+  "private";
 
+access_to_acl(public) ->
+  "public-read";
 
-exists_test_() ->
-  [
-    ?_assertEqual(true, dir_exists("s3://tbconvert/recordings/2/record_10/")),
-    ?_assertEqual(true, dir_exists("s3://tbconvert")),
-    ?_assertEqual(false, dir_exists("s3://tbconvert/1.mp4")),
-    ?_assertEqual(false, dir_exists("s3://tbconvert/recordings/2/record_10213/")),
-    ?_assertEqual(false, dir_exists("s3://tbconvert/no_existed_dir/")),
-    ?_assertEqual(false, dir_exists("s3://tb.records")),
-    ?_assertEqual(false, dir_exists("s3://no_existed_bucket"))
-  ].
+access_to_acl(authorized) ->
+  "authenticated-read";
 
--endif.
+access_to_acl(_) ->
+  "public".

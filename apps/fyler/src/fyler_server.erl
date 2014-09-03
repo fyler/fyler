@@ -6,15 +6,6 @@
 
 -behaviour(gen_server).
 
--define(TRY_NEXT_TIMEOUT, 1500).
-
-%% Maximum time for waiting any pool to become enabled.
--define(IDLE_TIME_WM, 60000).
-
-%% Limit on queue length. If it exceeds new pool instance should be started.
--define(QUEUE_LENGTH_WM, 30).
-
-
 %% store session info
 -define(T_SESSIONS, fyler_auth_sessions).
 
@@ -25,7 +16,7 @@
 %% API
 -export([start_link/0]).
 
--export([run_task/3, clear_stats/0, pools/0, send_response/3, authorize/2, is_authorized/1, tasks_stats/0, save_task_stats/1]).
+-export([run_task/3, start_pool/1, clear_stats/0, pools/0, send_response/3, authorize/2, is_authorized/1, tasks_stats/0, save_task_stats/1]).
 
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -41,14 +32,11 @@
 %% gen_server callbacks
 -record(state, {
   cowboy_pid :: pid(),
-  storage_dir :: string(),
   aws_bucket :: string(),
   aws_dir :: string(),
-  pools_active = [] :: list(),
-  pools_busy = [] :: list(),
-  busy_timer_ref = undefined,
-  tasks_count = 1 :: non_neg_integer(),
-  tasks = queue:new() :: queue()
+  pool_masters = #{} :: #{atom() => pid()},
+  nodes = #{} ::#{atom() => atom()},
+  tasks_count = 1 :: non_neg_integer()
 }).
 
 
@@ -65,9 +53,9 @@ init(_Args) ->
 
   ?D("fyler webserver started"),
 
-  Dir = ?Config(storage_dir, "ff"),
+  ets:new(?T_STATS, [public, named_table, {keypos, #job_stats.id}]),
 
-  ets:new(?T_STATS, [public, named_table, {keypos, #current_task.id}]),
+  ets:new(?T_LIVE_STATS, [public, named_table, {keypos, #task.id}]),
 
   ets:new(?T_SESSIONS, [private, named_table, {keypos, #ets_session.session_id}]),
 
@@ -75,7 +63,9 @@ init(_Args) ->
 
   Bucket = ?Config(aws_s3_bucket, []),
 
-  {ok, #state{cowboy_pid = Http, storage_dir = Dir, aws_bucket = Bucket, aws_dir = ?Config(aws_dir, "fyler/")}}.
+  PoolMasters = setup_pools(?Config(pool_types,[])),
+
+  {ok, #state{cowboy_pid = Http, aws_bucket = Bucket, pool_masters = PoolMasters, aws_dir = ?Config(aws_dir, "fyler/")}}.
 
 
 %% @doc
@@ -120,8 +110,7 @@ clear_stats() ->
 %% @end
 
 pools() ->
-  gen_server:call(?MODULE, pools).
-
+  [[{node, Node}, {type, Type}, {enabled, Enabled}, {active_tasks, Active}, {total, Total}] || #pool{node = Node, type = Type, enabled = Enabled, active_tasks_num = Active, total_tasks = Total} <- gen_server:call(?MODULE, pools)].
 
 %% @doc
 %% Return a list of last 50 tasks completed as #job_stats{}.
@@ -130,11 +119,7 @@ pools() ->
 -spec tasks_stats() -> list(#job_stats{}).
 
 tasks_stats() ->
-  Values = case pg_cli:equery("select * from tasks order by id desc limit 50") of
-             {ok, _, List} -> List;
-             Other -> ?D({pg_query_failed, Other})
-           end,
-  [fyler_utils:task_record_to_proplist(V) || V <- Values].
+  [fyler_utils:stats_to_proplist(V) || V <- ets:tab2list(?T_STATS)].
 
 
 %% @doc
@@ -144,11 +129,17 @@ tasks_stats() ->
 -spec save_task_stats(#job_stats{}) -> any().
 
 save_task_stats(#job_stats{} = Stats) ->
-  ValuesString = fyler_utils:stats_to_pg_string(Stats),
-  case pg_cli:equery("insert into tasks (status,download_time,upload_time,file_size,file_path,time_spent,result_path,task_type,error_msg) values (" ++ ValuesString ++ ")") of
-    {ok, _} -> ok;
-    Other -> ?D({pg_query_failed, Other})
-  end.
+  ets:insert(?T_STATS, Stats).
+
+%% @doc
+%% Run new pool instance by type
+%% @end
+
+-spec start_pool(atom()) -> ok|false.
+
+start_pool(Type) ->
+  ?D({request_new_pool,Type}),
+  false.
 
 
 %% @doc
@@ -158,34 +149,43 @@ save_task_stats(#job_stats{} = Stats) ->
 -spec run_task(string(), string(), list()) -> ok|false.
 
 run_task(URL, Type, Options) ->
-  gen_server:call(?MODULE, {run_task, URL, Type, Options}).
+  PoolType = pool_type(Type),
+  TaskType = list_to_atom(Type),
+  gen_server:call(?MODULE, {run_task, URL, PoolType, TaskType, Options}).
 
 
-handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, storage_dir = Dir, aws_bucket = Buckets, aws_dir = AwsDir, tasks_count = TCount} = State) ->
-  case parse_url(URL, Buckets) of
-    {IsAws, Bucket, Path, Name, Ext} ->
-      UniqueDir = uniqueId() ++ "_" ++ Name,
-      DirId = Dir ++ UniqueDir,
-      TmpName = DirId ++ "/" ++ Name ++ "." ++ Ext,
-      ?D(Options),
-      Callback = proplists:get_value(callback, Options, undefined),
-      TargetDir = case proplists:get_value(target_dir, Options) of
-                    undefined -> AwsDir ++ UniqueDir;
-                    TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Bucket) of
-                                    {true, TargetPath} -> TargetPath;
-                                    _ -> ?D(wrong_target_dir), AwsDir ++ UniqueDir
-                                  end
-                  end,
-      Task = #task{id = TCount, type = list_to_atom(Type), options = Options, callback = Callback, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = IsAws, url = Path, name = Name, dir = DirId, tmp_path = TmpName}},
-      NewTasks = queue:in(Task, Tasks),
+handle_call({run_task, URL, PoolType, Type, Options}, _From, #state{pool_masters = Pools, aws_bucket = Buckets, tasks_count = TCount} = State) ->
+  case maps:get(PoolType,Pools,false) of
+    false -> 
+      ?E({unknown_type, PoolType}),
+      {reply, false, State};
+    Pool ->
+      case parse_url(URL, Buckets) of
+        {true, Bucket, Path, Name, Ext} ->
+          UniqueDir = uniqueId() ++ "_" ++ Name,
+          TmpName = filename:join(UniqueDir, Name ++ "." ++ Ext),
+          ?D(Options),
+          Callback = proplists:get_value(callback, Options, undefined),
+          TargetDir = case proplists:get_value(target_dir, Options) of
+                        undefined -> filename:join(AwsDir,UniqueDir);
+                        TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Bucket) of
+                                        {true, TargetPath} -> TargetPath;
+                                        _ -> ?D(wrong_target_dir), filename:join(AwsDir, UniqueDir)
+                                      end
+                      end,
 
-      ets:insert(?T_STATS, #current_task{id = TCount, type = list_to_atom(Type), url = Path, status = queued}),
+          Task = #task{id = TCount, type = Type, pool_type = PoolType, options = Options, callback = Callback, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = true, url = Path, name = Name, tmp_path = TmpName}},
+         
+          ets:insert(?T_LIVE_STATS, Task),
 
-      self() ! try_next_task,
+          Pool ! {run_task, Task},
 
-      {reply, ok, State#state{tasks = NewTasks, tasks_count = TCount + 1}};
-    _ -> ?D({bad_url, URL}),
-      {reply, false, State}
+          {reply, ok, State#state{tasks_count = TCount + 1}};
+
+        _ -> 
+          ?E({bad_url, URL}),
+          {reply, false, State}
+      end
   end;
 
 
@@ -203,9 +203,8 @@ handle_call({is_authorized, Token}, _From, #state{} = State) ->
           end,
   {reply, Reply, State};
 
-
-handle_call(pools, _From, #state{pools_active = P1, pools_busy = P2} = State) ->
-  {reply, P1 ++ P2, State};
+handle_call(pools, _From, #state{pools=PoolMasters} = State) ->
+  {reply, lists:flatten([gen_server:call(Pool, pools) || Pool <- PoolMasters]), State};
 
 
 handle_call(_Request, _From, State) ->
@@ -213,28 +212,16 @@ handle_call(_Request, _From, State) ->
   {reply, unknown, State}.
 
 
-handle_cast({pool_enabled, Node, true}, #state{pools_busy = Pools, pools_active = Active} = State) ->
-  ?D({pool_enabled, Node}),
-  case lists:keyfind(Node, #pool.node, Pools) of
-    #pool{} = Pool ->
-      self() ! try_next_task,
-      {noreply, State#state{pools_busy = lists:keydelete(Node, #pool.node, Pools), pools_active = lists:keystore(Node, #pool.node, Active, Pool#pool{enabled = true})}};
-    _ -> {noreply, State}
-  end;
-
-
-handle_cast({pool_enabled, Node, false}, #state{pools_active = Pools, pools_busy = Busy} = State) ->
-  ?D({pool_disabled, Node}),
-  case lists:keyfind(Node, #pool.node, Pools) of
-    #pool{} = Pool ->
-      {noreply, State#state{pools_active = lists:keydelete(Node, #pool.node, Pools), pools_busy = lists:keystore(Node, #pool.node, Busy, Pool#pool{enabled = false})}};
-    _ -> {noreply, State}
-  end;
-
-
-handle_cast({task_finished, Node}, #state{pools_active = Pools, pools_busy = Busy} = State) ->
-  {NewPools, NewBusy} = decriment_tasks_num(Pools, Busy, Node),
-  {noreply, State#state{pools_active = NewPools, pools_busy = NewBusy}};
+handle_cast({pool_enabled, Type, Node, Enabled}, #state{pools_masters=Pools} = State) ->
+  ?D({pool_enabled, Type, Node, Enabled}),
+  case maps:get(Type,Pools,false) of
+    false -> 
+      ?E({unknown_pool_type, Node, Type}),
+      false;
+    Pool ->
+      Pool ! {pool_enabled, Node, Enabled}
+  end,
+  {noreply, State};
 
 
 handle_cast(_Request, State) ->
@@ -246,70 +233,39 @@ handle_info({session_expired, Token}, State) ->
   ets:delete(?T_SESSIONS, Token),
   {noreply, State};
 
-handle_info({pool_connected, Node, true, Num}, #state{pools_active = Pools} = State) ->
-  NewPools = lists:keystore(Node, #pool.node, Pools, #pool{node = Node, active_tasks_num = Num, enabled = true}),
-  {fyler_pool, Node} ! pool_accepted,
-  self() ! try_next_task,
-  {noreply, State#state{pools_active = NewPools}};
-
-handle_info({pool_connected, Node, false, Num}, #state{pools_busy = Pools} = State) ->
-  NewPools = lists:keystore(Node, #pool.node, Pools, #pool{node = Node, active_tasks_num = Num, enabled = false}),
-  {fyler_pool, Node} ! pool_accepted,
-  {noreply, State#state{pools_busy = NewPools}};
-
-handle_info(try_next_task, #state{pools_active = [], busy_timer_ref = undefined} = State) ->
-  ?D(<<"All pools are busy; start timer to run new reserved instance">>),
-  Ref = erlang:send_after(?IDLE_TIME_WM, self(), alarm_high_idle_time),
-  {noreply, State#state{busy_timer_ref = Ref}};
-
-handle_info(try_next_task, #state{pools_active = [], tasks = Tasks} = State) when length(Tasks) > ?QUEUE_LENGTH_WM ->
-  ?D({<<"Queue is too big, start new instance">>, length(Tasks)}),
-  %%todo:
-  {noreply, State};
-
-
-handle_info(try_next_task, #state{pools_active = Pools, busy_timer_ref = Ref} = State) when Ref /= undefined andalso length(Pools) > 0 ->
-  erlang:cancel_timer(Ref),
-  handle_info(try_next_task, State#state{busy_timer_ref = undefined});
-
-handle_info(try_next_task, #state{tasks = Tasks, pools_active = Pools} = State) ->
-  {NewTasks, NewPools} = case queue:out(Tasks) of
-                           {empty, _} -> ?D(no_more_tasks),
-                             {Tasks, Pools};
-                           {{value, #task{id = TaskId, type = TaskType, file = #file{url = TaskUrl}} = Task}, Tasks2} ->
-                             case choose_pool(Pools) of
-                               #pool{node = Node, active_tasks_num = Num, total_tasks = Total} = Pool ->
-                                 rpc:cast(Node, fyler_pool, run_task, [Task]),
-                                 ets:insert(?T_STATS, #current_task{id = TaskId, task = Task, type = TaskType, url = TaskUrl, pool = Node, status = progress}),
-                                 {Tasks2, lists:keystore(Node, #pool.node, Pools, Pool#pool{active_tasks_num = Num + 1, total_tasks = Total + 1})};
-                               _ -> {Tasks, Pools}
-                             end
-                         end,
-  Empty = queue:is_empty(NewTasks),
-  if Empty
-    -> ok;
-    true -> erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task)
+handle_info({pool_connected, Node, Type, Enabled, Num}, #state{pool_masters = Pools, nodes = Nodes} = State) ->
+  NewNodes = case maps:get(Type,Pools,false) of
+    false -> 
+      ?E({unknown_pool_type, Node, Type}),
+      Nodes;
+    Pool -> 
+      Pool ! {pool_connected, Node, Type, Enabled, Num},
+      {fyler_pool, Node} ! pool_accepted,
+      maps:put(Node,Type,Nodes)
   end,
-  {noreply, State#state{pools_active = NewPools, tasks = NewTasks}};
+  {noreply, State#state{nodes = NewNodes}};
 
-handle_info(alarm_high_idle_time, State) ->
-  ?D(<<"Too much time in idle state">>),
-  %%todo:
-  {noreply, State#state{busy_timer_ref = undefined}};
 
-handle_info({nodedown, Node}, #state{pools_active = Pools, pools_busy = Busy, tasks = OldTasks} = State) ->
+handle_info({nodedown, Node}, #state{nodes = Nodes, pool_masters = Pools} = State) ->
   ?D({nodedown, Node}),
-  NewPools = lists:keydelete(Node, #pool.node, Pools),
-  NewBusy = lists:keydelete(Node, #pool.node, Busy),
+  NewNodes = case maps:get(Node,Nodes, false) of
+    false -> 
+      ?D({unknown_node,Node}),
+      Nodes;
+    Type ->
+      PoolMaster = maps:get(Type,Pools),
+      PoolMaster ! {pool_disconnected, Node},
 
-  NewTasks = case ets:match_object(?T_STATS, #current_task{pool = Node, _ = '_'}) of
-               [] -> ?I("No active tasks in died pool"), OldTasks;
-               Tasks -> ?I("Pool died with active tasks; restarting..."),
-                 self() ! try_next_task,
-                 restart_tasks(Tasks, OldTasks)
-             end,
-
-  {noreply, State#state{pools_active = NewPools, pools_busy = NewBusy, tasks = NewTasks}};
+      case ets:match_object(?T_LIVE_STATS, #task{pool = Node, _ = '_'}) of
+        [] -> 
+          ?I("No active tasks in died pool"), ok;
+        Tasks -> 
+          ?I("Pool died with active tasks; restarting..."),
+          restart_tasks(Tasks,PoolMaster)
+      end,
+      maps:remove(Node,Nodes)
+  end,
+  {noreply, State#state{nodes = NewNodes}};
 
 handle_info(Info, State) ->
   ?D(Info),
@@ -332,39 +288,21 @@ code_change(_OldVsn, State, _Extra) ->
 send_response(#task{callback = undefined}, _, _) ->
   ok;
 
-send_response(#task{callback = Callback, file = #file{is_aws = true, bucket = Bucket, target_dir = Dir}}, #job_stats{result_path = Path}, success) ->
+send_response(#task{callback = Callback, file = #file{bucket = Bucket, target_dir = Dir}}, #job_stats{result_path = Path}, success) ->
   ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=true&bucket=" ++ Bucket ++ "&data=" ++ jiffy:encode({[{path, Path}, {dir, list_to_binary(Dir)}]}), []);
-
-send_response(#task{callback = Callback, file = #file{is_aws = false}}, #job_stats{result_path = Path}, success) ->
-  %% ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=false&data=" ++ jiffy:encode({[{path, Path}]}), []);
-  ?D({<<"We cannot work without aws now. Sorry(">>, Callback, Path});
 
 send_response(#task{callback = Callback}, _, failed) ->
   ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=failed", []).
 
 
 start_http_server() ->
-
-  Static = fun(Filetype) ->
-    {lists:append(["/", Filetype, "/[...]"]), cowboy_static, [
-      {directory, {priv_dir, fyler, [list_to_binary(Filetype)]}},
-      {mimetypes, {fun mimetypes:path_to_mimes/2, default}}
-    ]}
-  end,
-
   Dispatch = cowboy_router:compile([
     {'_', [
-      Static("css"),
-      Static("js"),
-      Static("img"),
-      {"/", index_handler, []},
       {"/stats", stats_handler, []},
       {"/tasks", tasks_handler, []},
       {"/pools", pools_handler, []},
       {"/api/auth", auth_handler, []},
       {"/api/tasks", task_handler, []},
-      %% NOTE: only for deployment    {"/api/call/:call", call_handler, []},
-      {"/loopback", loopback_handler, []},
       {'_', notfound_handler, []}
     ]}
   ]),
@@ -376,66 +314,18 @@ start_http_server() ->
 
 
 %% @doc
-%% Simply choose pool with the least number of active tasks.
-%%
-%% todo: more intelligent logic)
-%% @end
-
--spec choose_pool(list(#pool{})) -> #pool{}|undefined.
-
-choose_pool([]) ->
-  undefined;
-
-choose_pool(Pools) ->
-  hd(lists:keysort(#pool.active_tasks_num, Pools)).
-
-%% @doc
 %% Add tasks to the queue again.
 %% @end
 
--spec restart_tasks(list(#current_task{}), queue()) -> queue().
+-spec restart_tasks(list(task())) -> ok.
 
-restart_tasks([], Tasks) -> ?I("All tasks restarted."), Tasks;
+restart_tasks([],_) -> ?I("All tasks restarted."), ok;
 
-restart_tasks([#current_task{task = Task}|T], Old) ->
+restart_tasks([Task|T],Pool) ->
   ?D({restarting_task, Task}),
-  restart_tasks(T, queue:in(Task, Old)).
+  Pool ! {run_task, Task},
+  restart_tasks(T,Pool).
 
-
-
-
-
-
--spec decriment_tasks_num(list(#pool{}), list(#pool{}), atom()) -> {list(#pool{}), list(#pool{})}.
-
-decriment_tasks_num([], [], _Node) ->
-  {[], []};
-
-decriment_tasks_num(A, [], Node) ->
-  case lists:keyfind(Node, #pool.node, A) of
-    #pool{active_tasks_num = N} = Pool when N > 0 ->
-      {lists:keystore(Node, #pool.node, A, Pool#pool{active_tasks_num = N - 1}), []};
-    _ -> {A, []}
-  end;
-
-decriment_tasks_num([], A, Node) ->
-  case lists:keyfind(Node, #pool.node, A) of
-    #pool{active_tasks_num = N} = Pool when N > 0 ->
-      {[], lists:keystore(Node, #pool.node, A, Pool#pool{active_tasks_num = N - 1})};
-    _ -> {[], A}
-  end;
-
-decriment_tasks_num(A, B, Node) ->
-  case lists:keyfind(Node, #pool.node, A) of
-    #pool{active_tasks_num = N} = Pool when N > 0 ->
-      {lists:keystore(Node, #pool.node, A, Pool#pool{active_tasks_num = N - 1}), B};
-    #pool{active_tasks_num = 0} -> {A, B};
-    _ -> case lists:keyfind(Node, #pool.node, B) of
-           #pool{active_tasks_num = N} = Pool when N > 0 ->
-             {A, lists:keystore(Node, #pool.node, B, Pool#pool{active_tasks_num = N - 1})};
-           _ -> {A, B}
-         end
-  end.
 
 %%% @doc
 %%% @end
@@ -488,6 +378,8 @@ uniqueId() ->
 
 
 
+
+
 -ifdef(TEST).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -508,41 +400,6 @@ dir_url_test() ->
   ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("https://devtbupload.s3.amazonaws.com/recordings/2/record_17/stream_1/", "devtbupload")),
   ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("http://devtbupload.s3-eu-west-1.amazonaws.com/recordings/2/record_17/stream_1/", "devtbupload")),
   ?assertEqual({false, "https://2.com/record_17/stream_1/"}, parse_url_dir("https://2.com/record_17/stream_1/", "devtbupload")).
-
-
-decr_num_test() ->
-  A = [
-    #pool{node = a, active_tasks_num = 2},
-    #pool{node = b, active_tasks_num = 0}
-  ],
-  A1 = [
-    #pool{node = a, active_tasks_num = 1},
-    #pool{node = b, active_tasks_num = 0}
-  ],
-  B = [
-    #pool{node = c, active_tasks_num = 4}
-  ],
-  B1 = [
-    #pool{node = c, active_tasks_num = 3}
-  ],
-
-  ?assertEqual({A1, B}, decriment_tasks_num(A, B, a)),
-  ?assertEqual({A, B1}, decriment_tasks_num(A, B, c)),
-  ?assertEqual({A, []}, decriment_tasks_num(A, [], c)),
-  ?assertEqual({[], []}, decriment_tasks_num([], [], a)),
-  ?assertEqual({[], B1}, decriment_tasks_num([], B, c)),
-  ?assertEqual({A, B}, decriment_tasks_num(A, B, b)).
-
-
-
-choose_pool_test() ->
-  Pool = #pool{node = a, active_tasks_num = 0},
-  A = [
-    #pool{node = a, active_tasks_num = 2},
-    Pool
-  ],
-  ?assertEqual(Pool, choose_pool(A)).
-
 
 
 authorization_test_() ->

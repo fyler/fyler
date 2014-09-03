@@ -8,7 +8,6 @@ ERL_LIBS:=apps:deps
 ERL=erl +A 4 +K true
 REBAR := which rebar || ./rebar
 
-
 all: deps compile
 
 update:
@@ -30,17 +29,14 @@ test:
 clean:
 	@$(REBAR) clean
 
-dtl:
-	scripts/compile_dtl.erl
-
 handlers:
 	scripts/gen_handlers_list.erl
 
 run-server:
-	ERL_LIBS=apps:..:deps erl -args_file files/vm.args.sample -sasl errlog_type error -boot  start_sasl -s $(APPNAME) -embedded -config files/app.config  -fyler role server
+	ERL_LIBS=apps:deps erl -args_file files/vm.args.sample -sasl errlog_type error -boot  start_sasl -s $(APPNAME) -embedded -config files/app.config  -fyler role server
 
 run-pool:
-	ERL_LIBS=apps:..:deps erl -args_file files/vm.args.sample -sasl errlog_type error -boot start_sasl -s $(APPNAME) -embedded -config files/app.config  -fyler role pool
+	ERL_LIBS=apps:deps erl -args_file files/vm.args.sample -sasl errlog_type error -boot start_sasl -s $(APPNAME) -embedded -config files/app.config  -fyler role pool
 
 clean-tmp:
 	cd tmp && ls | xargs rm && cd ..

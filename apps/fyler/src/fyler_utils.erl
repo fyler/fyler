@@ -2,7 +2,7 @@
 -include("fyler.hrl").
 
 %% API
--export([task_record_to_proplist/1, stats_to_pg_string/1]).
+-export([stats_to_proplist/1]).
 
 
 
@@ -10,39 +10,39 @@
 %% Convert tuple of values from PG to #job_stats{} record.
 %% @end
 
--spec task_record_to_proplist(term()) -> list(#job_stats{}).
+-spec stats_to_proplist(term()) -> list(#job_stats{}).
 
-task_record_to_proplist(Record) ->
-  #job_stats{ts=TS}=Stats = list_to_tuple([job_stats|tuple_to_list(Record)]),
-  Stats2 = Stats#job_stats{ts = list_to_binary(pgtime_to_string(TS))},
-  Stats2.
+stats_to_proplist(Stats) ->
+  Keys = [
+    id, 
+    download_time, 
+    upload_time, 
+    file_url, 
+    file_size, 
+    file_path, 
+    time_spent, 
+    result_path, 
+    task_type],
+  Res = lists:zip(Keys, [
+    Stats#job_stats.id, 
+    Stats#job_stats.download_time, 
+    Stats#job_stats.upload_time, 
+    Stats#job_stats.file_url, 
+    Stats#job_stats.file_size, 
+    Stats#job_stats.file_path, 
+    Stats#job_stats.time_spent, 
+    Stats#job_stats.result_path,
+    Stats#job_stats.task_type
+  ])++[{created_at, time_to_string(Stats#job_stats.ts)},{error, error_to_string(Stats#job_stats.error_msg)}],
+  Res
 
-%% @doc
-%% Convert stats record values to pg values string
-%% @end
-
--spec stats_to_pg_string(#job_stats{}) -> string().
-
-stats_to_pg_string(#job_stats{status=Status,
-  download_time = DTime,
-  upload_time = UTime,
-  file_size = Size,
-  file_path = Path,
-  time_spent = Time,
-  error_msg = Error,
-  result_path = Results,
-  task_type = Type}) ->
-
-  ResultsList = ulitos:join([binary_to_list(R) || R<-Results],","),
-
-  "'"++atom_to_list(Status)++"',"++integer_to_list(to_int(DTime))++","++integer_to_list(to_int(UTime))++","++integer_to_list(to_int(Size))++",'"++Path++"',"++integer_to_list(to_int(Time))++",'"++ResultsList++"','"++atom_to_list(Type)++"','"++error_to_s(Error)++"'".
 
 
 %% @doc Convert epgsql time fromat to number.
 %% @end
 
--spec pgtime_to_string({{Year::non_neg_integer(),Month::non_neg_integer(),Day::non_neg_integer()},{Hour::non_neg_integer(),Minute::non_neg_integer(),Seconds::non_neg_integer()}}) -> number() | {error, badformat}.
-pgtime_to_string({{Year,Month,Day},{Hour,Minute,Seconds}}) ->
+-spec time_to_string({{Year::non_neg_integer(),Month::non_neg_integer(),Day::non_neg_integer()},{Hour::non_neg_integer(),Minute::non_neg_integer(),Seconds::non_neg_integer()}}) -> number() | {error, badformat}.
+time_to_string({{Year,Month,Day},{Hour,Minute,Seconds}}) ->
   integer_to_list(Year)++"-"++
     integer_to_list(Month)++"-"++
     integer_to_list(Day)++" "++
@@ -50,63 +50,59 @@ pgtime_to_string({{Year,Month,Day},{Hour,Minute,Seconds}}) ->
     pad(Minute)++":"++
     pad(trunc(Seconds));
 
-pgtime_to_string(_F) -> {error,badformat,_F}.
+time_to_string(_F) -> {error,badformat,_F}.
 
 
 pad(N) when N < 10 -> "0"++integer_to_list(N);
 
 pad(N) -> integer_to_list(N).
 
-to_int(undefined) -> 0;
+error_to_string(Error) when is_list(Error) ->
+  list_to_binary(Error);
 
-to_int(N) -> N.
+error_to_string(Error) when is_atom(Error) ->
+  Error;
 
-error_to_s(Er) when is_list(Er) ->
-  Er;
+error_to_string(Error) when is_binary(Error) ->
+  Error;
 
-error_to_s(Er) when is_binary(Er) ->
-  binary_to_list(Er);
+error_to_string({_,Error}) when is_list(Error) ->
+  error_to_string(Error);
 
-error_to_s({error,Reason}) ->
-  error_to_s(Reason);
+error_to_string(_) ->
+  <<"unknown">>.
 
-error_to_s(_) ->
-  "Error".
 
 
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
-
-rec_to_job_test_() ->
+stats_to_list_test_() ->
   [
-    ?_assertEqual(#job_stats{id=1,
-    status= <<"success">>,
+    ?_assertEqual([
+      {id, 1}, 
+      {download_time, 1}, 
+      {upload_time, 1},
+      {file_url, "file/url"},
+      {file_size, 1},
+      {file_path, "path/to/file"},
+      {time_spent, 1},
+      {result_path, "path/to/result"},
+      {task_type, do_nothing},
+      {created_at, "2013-10-24 12:00:00"},
+      {error, command_not_found}
+    ], stats_to_proplist(#job_stats{id=1,
+    status=success,
     download_time=1,
     upload_time=1,
-    file_size=1,
-    file_path= <<"path/to/file">>,
-    time_spent=1,
-    result_path= <<"path/to/result">>,
-    task_type= <<"do_nothing">>,
-    error_msg= <<"command not found">>,
-    ts = <<"2013-10-24 12:00:00">>}, task_record_to_proplist({1,<<"success">>,1,1,1,<<"path/to/file">>,1,<<"path/to/result">>,<<"do_nothing">>,<<"command not found">>,{{2013,10,24},{12,0,0.3}}}))
-  ].
-
-
-rec_to_string_test_() ->
-  [
-    ?_assertEqual("'success',1,1,1,'path/to/file',1,'path1,path2','do_nothing','command not found'", stats_to_pg_string(#job_stats{id=1,
-    status= success,
-    download_time=1,
-    upload_time=1,
+    file_url = "file/url",
     file_size=1,
     file_path= "path/to/file",
     time_spent=1,
-    result_path= [<<"path1">>,<<"path2">>],
+    result_path= "path/to/result",
     task_type= do_nothing,
-    error_msg= "command not found"}))
+    error_msg=command_not_found,
+    ts = {{2013,10,24},{12,0,0.3}}}))
   ].
-
 -endif.

@@ -3,9 +3,8 @@
 
 -define(Config(X,Y),ulitos:get_var(fyler,X,Y)).
 
--define(T_STATS,fyler_live_statistics).
-
--define(PG_POOL,fyler_pg_pool).
+-define(T_LIVE_STATS,fyler_live_statistics).
+-define(T_STATS,fyler_statistics).
 
 -record(file,{
   url ::string(),
@@ -21,32 +20,12 @@
 
 -type file() ::#file{}.
 
--record(task,{
-  id ::non_neg_integer(),
-  type ::atom(),
-  file ::file(),
-  callback = undefined ::binary(),
-  worker ::reference(),
-  options = []
-}).
-
--type task() ::#task{}.
-
--record(current_task,{
-  id ::non_neg_integer(),
-  status ::queued|progress,
-  task ::task(),
-  type ::atom(),
-  pool ::atom(),
-  url ::string()
-}).
-
-
 -record(job_stats,{
   id = 0 ::non_neg_integer(),
   status ::success|failed,
   download_time = 0 ::non_neg_integer(),
   upload_time = 0 ::non_neg_integer(),
+  file_url = "" ::string(),
   file_size = 0 ::non_neg_integer(),
   file_path = "" ::string(),
   time_spent = 0 ::non_neg_integer(),
@@ -57,6 +36,22 @@
 }).
 
 -type stats() ::#job_stats{}.
+
+-record(task,{
+  id ::non_neg_integer(),
+  type ::atom(),
+  pool_type ::atom(),
+  status = queued ::progress|queued, 
+  file ::file(),
+  priority = normal ::low|normal|high,
+  acl = public ::atom(),
+  callback = undefined ::binary(),
+  worker ::reference(),
+  options = [],
+  pool ::atom()
+}).
+
+-type task() ::#task{}.
 
 -type event_type() ::complete|failed|cpu_high|cpu_available.
 
@@ -70,7 +65,7 @@
 
 -record(pool, {
   node :: atom(),
+  type :: atom(),
   enabled :: boolean(),
-  active_tasks_num =0 :: non_neg_integer(),
   total_tasks = 0 ::non_neg_integer()
 }).

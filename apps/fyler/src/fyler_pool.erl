@@ -33,7 +33,8 @@ start_link() ->
   connected = false ::false|true|pending,
   storage_dir :: string(),
   aws_bucket :: string(),
-  tasks = queue:new() :: queue(),
+  type, 
+  tasks = queue:new() :: queue:queue(task()),
   active_tasks = [] :: list(task()),
   finished_tasks = [] ::list({atom(),task(),stats()})
 }).
@@ -48,7 +49,9 @@ init(_Args) ->
     ok -> ok;
     {error,eexist} -> ok
   end,
+
   Server = ?Config(server_name,null),
+  Type = ?Config(type,default),
 
   ?D({server,Server}),
 
@@ -56,7 +59,7 @@ init(_Args) ->
 
   ulitos_app:ensure_loaded(?Handlers),
 
-  {ok, #state{storage_dir = Dir ++ "/",  server_node = Server}}.
+  {ok, #state{storage_dir = Dir ++ "/",  server_node = Server, type = Type}}.
 
 
 %% @doc
@@ -107,26 +110,14 @@ handle_call({enabled, true}, _From, #state{enabled = false, connected = Connecte
   {reply, ok, State#state{enabled = true}};
 
 handle_call({enabled, false}, _From, #state{enabled = true,connected = Connected} = State) ->
-
   if Connected
     ->  fyler_event:pool_disabled();
     true -> ok
   end,
-
   {reply, ok, State#state{enabled = false}};
 
 handle_call({enabled, true}, _From, #state{enabled = true} = State) -> {reply, false, State};
 handle_call({enabled, false}, _From, #state{enabled = false} = State) -> {reply, false, State};
-
-handle_call({move_to_aws, Bucket, DirName, []}, _From, State) ->
-  Start = ulitos:timestamp(),
-  aws_cli:copy_folder(DirName, "s3://" ++ Bucket ++ "/" ++ DirName),
-  {reply, ulitos:timestamp() - Start, State};
-
-handle_call({move_to_aws, Bucket, DirName,TargetDir}, _From, State) ->
-  Start = ulitos:timestamp(),
-  aws_cli:copy_folder(DirName, "s3://" ++ Bucket ++ "/" ++ TargetDir),
-  {reply, ulitos:timestamp() - Start, State};
 
 handle_call(_Request, _From, State) ->
   ?D(_Request),
@@ -154,13 +145,14 @@ handle_cast(_Request, State) ->
 
 handle_info(pool_accepted,#state{finished_tasks = Finished} = State) ->
   [gen_server:cast(self(),T) || T <- Finished],
+  fyler_monitor:start_monitor(),
   {noreply,State#state{connected = true, finished_tasks = []}};
 
 
-handle_info(connect_to_server, #state{server_node = Node,enabled = Enabled,active_tasks = Tasks} = State) ->
+handle_info(connect_to_server, #state{server_node = Node,enabled = Enabled,active_tasks = Tasks, type = Type} = State) ->
   Connected = case net_kernel:connect(Node) of
                 true ->
-                  {fyler_server,Node} ! {pool_connected,node(),Enabled,length(Tasks)},
+                  {fyler_server,Node} ! {pool_connected, node(), Type, Enabled, length(Tasks)},
                   pending;
                 _ -> ?D(server_no_found),
                       erlang:send_after(?POLL_SERVER_TIMEOUT,self(),connect_to_server),
@@ -171,9 +163,9 @@ handle_info(connect_to_server, #state{server_node = Node,enabled = Enabled,activ
 
 handle_info(next_task, #state{tasks = Tasks, active_tasks = Active} = State) ->
   {NewTasks, NewActive} = case queue:out(Tasks) of
-                            {empty, _} -> fyler_monitor:stop_monitor(),
+                            {empty, _} -> 
                               {Tasks, Active};
-                            {{value, #task{file=#file{dir = Dir}}=Task}, Tasks2} -> fyler_monitor:start_monitor(),
+                            {{value, #task{file=#file{dir = Dir}}=Task}, Tasks2} -> 
                               ok = file:make_dir(Dir),
                               {ok, Pid} = fyler_sup:start_worker(Task),
                               Ref = erlang:monitor(process, Pid),
@@ -222,6 +214,7 @@ handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, activ
 
 handle_info({nodedown,Node},#state{server_node = Node}=State) ->
   erlang:send_after(?POLL_SERVER_TIMEOUT, self(), connect_to_server),
+  fyler_monitor:stop_monitor(),
   {noreply,State#state{connected = false}};
 
 

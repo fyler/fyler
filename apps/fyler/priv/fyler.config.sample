@@ -1,12 +1,8 @@
 {role, server}.
+{pool_types, [document, video]}.
 {server_name, fyler@domain.com}.
+{max_workers, 1}.
 {storage_dir,"ff/"}.
 {http_port,8008}.
 {aws_s3_bucket, ["tbconvert"]}.
 {aws_dir,"ff/"}.
-{pg_host,"127.0.0.1"}.
-{pg_db,"fyler"}.
-{pg_user,"fyler"}.
-{pg_pass,"fyler"}.
-{pg_pool_size, 5}.
-{pg_max_overflow, 10}.
