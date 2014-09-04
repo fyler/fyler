@@ -544,9 +544,7 @@ restart_task_test() ->
 
 setup_() ->
   lager:start(),
-  application:set_env(fyler,auth_pass,ulitos:binary_to_hex(crypto:hash(md5, "test"))),
-  application:set_env(fyler,auth_login,"test"),
-  application:set_env(fyler,aws_s3_bucket,["test"]),
+  application:set_env(fyler,config,"fyler.config.test"),
   fyler:start().
 
 cleanup_(_) ->
@@ -726,7 +724,15 @@ pdf_to_thumbs_test() ->
 split_pdf_test() ->
   ?assertEqual(document, split_pdf:category()).
 
-flv_to_hls_test() ->
-  ?assertEqual(video, flv_to_hls:category()).
+recording_to_hls_test() ->
+  ?assertEqual(video, recording_to_hls:category()).
 
+video_to_mp4_test() ->
+  ?assertEqual(video, video_to_mp4:category()).
+
+audio_to_mp3_test() ->
+  ?assertEqual(video, audio_to_mp3:category()).
+
+video_to_hls_test() ->
+  ?assertEqual(video, video_to_hls:category()).
 -endif.

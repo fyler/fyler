@@ -81,3 +81,11 @@
   active_tasks_num =0 :: non_neg_integer(),
   total_tasks = 0 ::non_neg_integer()
 }).
+
+
+-record(video_info,{
+  audio_codec = undefined ::string(),
+  video_codec = undefined ::string(),
+  video_size = undefined ::string(),
+  pixel_format = undefined ::string()
+}).

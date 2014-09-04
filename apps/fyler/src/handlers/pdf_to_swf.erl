@@ -16,11 +16,10 @@ run(File) -> run(File,[]).
 
 run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   Start = ulitos:timestamp(),
-  SDir = Dir++"/swfs",
-  ok = file:make_dir(SDir),
+  SDir = filename:join(Dir,"swfs"),
+  file:make_dir(SDir),
   ?D({"command",?COMMAND(Path,SDir)}),
   Data = os:cmd(?COMMAND(Path,SDir)),
-  ?D({swf_data,Data}),
   case filelib:wildcard("*.swf",SDir) of
     [] -> {error,Data};
     List -> JSON = jiffy:encode({
@@ -31,7 +30,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
                       {slides,[list_to_binary(T) || T <- List]}
                     ]
            } ),
-            JSONFile = Dir ++ "/" ++ Name++".swfs.json",
+            JSONFile = filename:join(Dir,Name++".swfs.json"),
             {ok,F} = file:open(JSONFile,[write]),
             file:write(F,JSON),
             file:close(F),

@@ -13,7 +13,11 @@
 
 start(_StartType, _StartArgs) ->
     lager:info("Starting application: fyler"),
-    ulitos:load_config(fyler,"fyler.config"),
+    ConfigPath = case ?Config(config,undefined) of
+      undefined -> "fyler.config";
+      Else -> Else
+    end,
+    ulitos:load_config(fyler,ConfigPath),
     fyler_sup:start_link(?Config(role,server)).
 
 stop(_State) ->

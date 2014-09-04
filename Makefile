@@ -27,11 +27,14 @@ release: clean compile
 test:
 	@$(REBAR) skip_deps=true eunit apps=fyler
 
+testconv:
+	@$(REBAR) skip_deps=true eunit suites=conversions_tests
+
 clean:
 	@$(REBAR) clean
 
-dtl:
-	scripts/compile_dtl.erl
+db_setup:
+	scripts/setup_db.erl
 
 handlers:
 	scripts/gen_handlers_list.erl

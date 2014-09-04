@@ -5,3 +5,5 @@
 * add pool max concurrent workers number
 * add S3 ACL support
 * auto-cleanup temp files
+* add tests for checking conversions utils
+* add video and audio conversion handlers

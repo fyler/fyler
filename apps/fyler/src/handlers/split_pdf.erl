@@ -19,12 +19,12 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},Opts) ->
   case proplists:get_value(split,Opts) of
     undefined -> ?D(split_options_undefined),
                  {ok,#job_stats{time_spent = 0, result_path = [list_to_binary(Path)]}};
-    Split ->  PDF = Dir ++ "/" ++ Name ++ "_split.pdf",
+    Split ->  PDF = filename:join(Dir,Name ++ "_split.pdf"),
               ?D({"command",?COMMAND(Path,binary_to_list(Split),PDF)}),
               Data = os:cmd(?COMMAND(Path,binary_to_list(Split),PDF)),
               case  filelib:is_file(PDF) of
                     true -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Name ++ "_split.pdf")]}};
-                    _ -> {error, Data}
+                    _ -> {error, {pdf_split_failed, PDF, Data}}
               end
   end.
 

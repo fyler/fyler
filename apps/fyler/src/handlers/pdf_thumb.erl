@@ -16,13 +16,13 @@ run(File) -> run(File,[]).
 
 run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   Start = ulitos:timestamp(),
-  Out = Dir++"/"++Name ++"_thumb.png",
+  Out = filename:join(Dir,Name ++"_thumb.png"),
   ?D({"command",?COMMAND(Path,Out)}),
   Data = os:cmd(?COMMAND(Path,Out)),
   ?D({gs_data,Data}),
   case  filelib:is_file(Out) of
     true -> {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Name ++"_thumb.png")]}};
-    _ -> {error, Data}
+    _ -> {error, {pdf_thumb_failed,Data}}
   end.
 
 

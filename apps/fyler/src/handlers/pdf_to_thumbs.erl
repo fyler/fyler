@@ -16,8 +16,8 @@ run(File) -> run(File,[]).
 
 run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   Start = ulitos:timestamp(),
-  ThumbDir = Dir++"/thumbs",
-  ok = file:make_dir(ThumbDir),
+  ThumbDir = filename:join(Dir,"thumbs"),
+  file:make_dir(ThumbDir),
   ?D({"command",?COMMAND(Path,ThumbDir++"/")}),
   Data = os:cmd(?COMMAND(Path,ThumbDir++"/")),
   ?D({gs_data,Data}),
@@ -31,7 +31,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
                       {thumbs,[list_to_binary(T) || T <- List]}
                     ]
            } ),
-            JSONFile = Dir ++ "/" ++ Name++".thumbs.json",
+            JSONFile = filename:join(Dir,Name++".thumbs.json"),
             {ok,F} = file:open(JSONFile,[write]),
             file:write(F,JSON),
             file:close(F),

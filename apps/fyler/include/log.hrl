@@ -3,9 +3,9 @@
 
 -ifdef(TEST).
 
--define(D(X), lager:info("[DEBUG] ~p:~p ~p",[?MODULE, ?LINE, X])).
--define(I(X), lager:info("[INFO] ~p:~p ~p",[?MODULE, ?LINE, X])).
--define(E(X), lager:info("[ERROR] ~p:~p ~p",[?MODULE, ?LINE, X])).
+-define(D(X), lager:info("[DEBUG] ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-define(I(X), lager:info("[INFO] ~p:~p ~p~n",[?MODULE, ?LINE, X])).
+-define(E(X), lager:info("[ERROR] ~p:~p ~p~n",[?MODULE, ?LINE, X])).
 
 -else.
 
