@@ -679,7 +679,7 @@ pools_list_t_(_) ->
   ets:insert(?T_POOLS, #pool{total_tasks = 2, node = test, category = docs, enabled = true}),
   ets:insert(?T_POOLS, #pool{total_tasks = 12, node = test2, category = docs, enabled = true}),
   ets:insert(?T_POOLS, #pool{node = test3, category = docass, enabled = false}),
-  Pools = fyler_server:pools(),
+  Pools = [P||{P}<-fyler_server:pools()],
   [
     ?_assertEqual(2, proplists:get_value(total, lists:last(Pools))),
     ?_assertEqual(docass, proplists:get_value(category, hd(Pools))) 

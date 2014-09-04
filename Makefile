@@ -24,11 +24,14 @@ release: clean compile
 	@$(REBAR) generate force=1
 	chmod +x $(APPNAME)/bin/$(APPNAME)
 
-test:
-	@$(REBAR) skip_deps=true eunit apps=fyler
+test-core:
+	@$(REBAR) skip_deps=true eunit apps=fyler suites=fyler_server,fyler_uploader,aws_cli,fyler_utils
 
-testconv:
-	@$(REBAR) skip_deps=true eunit suites=conversions_tests
+test-docs:
+	@$(REBAR) skip_deps=true eunit suites=docs_conversions_tests
+
+test-video:
+	@$(REBAR) skip_deps=true eunit suites=video_conversions_tests
 
 clean:
 	@$(REBAR) clean
