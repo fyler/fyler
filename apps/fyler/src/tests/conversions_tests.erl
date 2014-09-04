@@ -52,6 +52,7 @@ cleanup_(_) ->
   file:delete(?PATH("v1.mp4")),
   file:delete(?PATH("v2_converted.mp4")),
   file:delete(?PATH("v3.mp4")),
+  file:delete(?PATH("stream_1.mp4")),
   file:delete(?PATH("8.mp3")),
   file:delete(?PATH("9_converted.mp3")),
   file:delete(?PATH("3.pdf")),
@@ -109,7 +110,8 @@ video_mp4_test_() ->
     [
       {timeout, ?TIMEOUT, [mov_to_mp4_t_()]},
       {timeout, ?TIMEOUT, [avi_to_mp4_t_()]},
-      {timeout, ?TIMEOUT, [mp4_to_mp4_t_()]}
+      {timeout, ?TIMEOUT, [mp4_to_mp4_t_()]},
+      {timeout, ?TIMEOUT, [flv_to_mp4_t_()]}
     ]
   ).
 
@@ -240,6 +242,14 @@ avi_to_mp4_t_() ->
 mp4_to_mp4_t_() ->
   fun() ->
     Res = video_to_mp4:run(#file{tmp_path = ?PATH("v2.mp4"), name = "v2", dir = ?PATH("")}),
+    ?assertMatch({ok,#job_stats{}}, Res),
+    {_, Stat} = Res,
+    ?assertEqual(3, length(Stat#job_stats.result_path))
+  end.
+
+flv_to_mp4_t_() ->
+  fun() ->
+    Res = video_to_mp4:run(#file{tmp_path = ?PATH("stream_1.flv"), name = "stream_1", dir = ?PATH("")}),
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(3, length(Stat#job_stats.result_path))

@@ -8,6 +8,7 @@
 -behaviour(gen_server).
 
 -define(TRY_NEXT_TIMEOUT, 1500).
+-define(POOL_BUSY_TIMEOUT, 5000).
 -define(POLL_SERVER_TIMEOUT, 30000).
 
 
@@ -94,7 +95,7 @@ handle_call({run_task, Task}, _From, #state{enabled = Enabled, tasks = Tasks} = 
   fyler_monitor:start_monitor(),
   NewTasks = queue:in(Task, Tasks),
   if Enabled
-    -> self() ! next_task;
+    -> self() ! try_next_task;
     true -> ok
   end,
   {reply, ok, State#state{tasks = NewTasks}};
@@ -189,7 +190,7 @@ handle_info(try_next_task, #state{enabled = false} = State) ->
 
 handle_info(try_next_task, #state{max_active = Max, active_tasks = Active} = State) when Max =< length(Active) ->
   ?D({pool_is_busy}),
-  erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task),
+  erlang:send_after(?POOL_BUSY_TIMEOUT, self(), try_next_task),
   {noreply, State};
 
 handle_info(try_next_task, #state{tasks = Tasks} = State) ->

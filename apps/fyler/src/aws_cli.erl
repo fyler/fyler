@@ -4,8 +4,6 @@
 
 -include("../include/log.hrl").
 
--define(NOT_EXISTS_SIZE,87).
-
 %% API
 -export([copy_object/2, copy_object/3, copy_folder/2, copy_folder/3, dir_exists/1]).
 
@@ -26,17 +24,19 @@ copy_folder(From,To,Acl) ->
 
 %% @doc
 %% Check whether s3 dir prefix exists.
-%%
-%% <b>Note</b>: don't forget about tailing slash;
-%% Algorithm is empirical, but works fine.
 %% @end
 
 -spec dir_exists(Path::list()) -> boolean().
 
 dir_exists(Path) ->
   Res = os:cmd("aws s3 ls "++Path),
-  length(Res)-length(Path) > ?NOT_EXISTS_SIZE.
+  parse_ls_result(Res).
 
+parse_ls_result([]) ->
+  false;
+
+parse_ls_result(Str) ->
+  not (string:str(Str,"(NoSuchBucket)")>0).
 
 access_to_acl(private) ->
   "private";
@@ -49,3 +49,14 @@ access_to_acl(authorized) ->
 
 access_to_acl(_) ->
   "public".
+
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+parse_ls_result_test() ->
+  ?assert(parse_ls_result("some letters")),
+  ?assertNot(parse_ls_result("")),
+  ?assertNot(parse_ls_result("\nA client error (NoSuchBucket) occurred when calling the ListObjects operation: The specified bucket does not exist\n")).
+
+-endif.

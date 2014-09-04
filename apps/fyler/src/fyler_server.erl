@@ -25,7 +25,7 @@
 %% API
 -export([start_link/0]).
 
--export([run_task/3, clear_stats/0, pools/0, current_tasks/0, send_response/3, authorize/2, is_authorized/1, tasks_stats/0, save_task_stats/1]).
+-export([run_task/3, clear_stats/0, pools/0, current_tasks/0, send_response/3, authorize/2, is_authorized/1, tasks_stats/0, tasks_stats/1, save_task_stats/1]).
 
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -135,14 +135,41 @@ current_tasks() ->
   [fyler_utils:current_task_to_proplist(Task) || Task <- ets:tab2list(?T_STATS)].
 
 
-%% @doc
-%% Return a list of last 50 tasks completed as #job_stats{}.
-%% @end
-
 -spec tasks_stats() -> list(#job_stats{}).
 
 tasks_stats() ->
-  Values = case pg_cli:equery("select * from tasks order by id desc limit 50") of
+  tasks_stats([]).
+
+%% @doc
+%% Return a list of last 50 tasks completed as #job_stats{}.
+%% @end
+-spec tasks_stats(Params::list()) -> list(#job_stats{}).
+
+tasks_stats(Params) ->
+  ?D({query_params,Params}),
+  Offset = binary_to_list(proplists:get_value(offset,Params,<<"0">>)),
+  Limit = binary_to_list(proplists:get_value(limit,Params,<<"50">>)),
+  OrderBy = binary_to_list(proplists:get_value(order_by,Params,<<"id">>)),
+  Order = binary_to_list(proplists:get_value(order,Params,<<"desc">>)),
+
+  Query_ = [],
+  
+  Query1 = case proplists:get_value(status,Params,false) of
+    false -> Query_;
+    Status -> Query_++["status='"++binary_to_list(Status)++"'"]
+  end,
+
+  Query2 = case proplists:get_value(type,Params,false) of
+    false -> Query1;
+    Type -> Query1++["task_type='"++binary_to_list(Type)++"'"]
+  end,
+
+  Query = if length(Query2) > 0
+    -> "where ("++string:join(Query2," and ")++")";
+    true -> ""
+  end,
+
+  Values = case pg_cli:equery("select * from tasks "++Query++"order by "++OrderBy++" "++Order++" offset "++Offset++" limit "++Limit) of
              {ok, _, List} -> List;
              Other -> ?D({pg_query_failed, Other})
            end,
@@ -157,6 +184,7 @@ tasks_stats() ->
 
 save_task_stats(#job_stats{} = Stats) ->
   ValuesString = fyler_utils:stats_to_pg_string(Stats),
+  ?D({pg_insert_values,ValuesString}),
   case pg_cli:equery("insert into tasks (status,download_time,upload_time,file_size,file_path,time_spent,result_path,task_type,error_msg) values (" ++ ValuesString ++ ")") of
     {ok, _} -> ok;
     Other -> ?D({pg_query_failed, Other})

@@ -18,7 +18,7 @@
 
 -define(SERVER, ?MODULE).
 
--define(AWS_URL(B,F),"http://"++B++".s3.amazonaws.com/"++F).
+-define(AWS_URL(B,F), "s3://"++filename:join(B,F)++"/").
 
 -record(state, {
   queue = queue:new() ::queue:queue()
@@ -235,7 +235,7 @@ handle_task_test_() ->
 
 add_task_t_(_) ->
   [
-    ?_assertEqual(queued,fyler_uploader:upload_to_aws("", "./tmp/test_1", "", "", self()))
+    ?_assertEqual(queued,fyler_uploader:upload_to_aws("", "./tmp/test", "", "", self()))
   ].
 
 complete_task_t_(_) ->

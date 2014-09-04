@@ -12,7 +12,7 @@ init({tcp, http}, Req, _Opts) ->
   {ok, Req, undefined_state}.
 
 handle(Req, State) ->
-  {ok, HTML} = jiffy:encode(fyler_server:current_tasks()),
+  HTML = jiffy:encode(fyler_server:current_tasks()),
   {ok, Req2} = cowboy_req:reply(200, [], HTML, Req),
   {ok, Req2, State}.
 

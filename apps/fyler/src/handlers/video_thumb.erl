@@ -28,7 +28,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},Opts) ->
   case filelib:wildcard("*_poster.png",Dir) of
     [] -> {error,Data};
     _List ->
-            Result = Name++"_poster.png", 
+            Result = list_to_binary(Name++"_poster.png"), 
             case image_thumb:run(#file{tmp_path = Poster, name = Name, dir = Dir},Opts) of
               {ok,#job_stats{result_path = Thumb}} ->
                 {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [Result|Thumb]}};

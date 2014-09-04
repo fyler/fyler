@@ -7,3 +7,4 @@
 * auto-cleanup temp files
 * add tests for checking conversions utils
 * add video and audio conversion handlers
+* add simple query support for completed tasks list (GET query: type, status, order (asc,desc), order_by, offset, limit)

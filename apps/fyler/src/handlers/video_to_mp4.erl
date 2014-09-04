@@ -5,7 +5,7 @@
 -include("../fyler.hrl").
 -include("../../include/log.hrl").
 
--export([run/1, run/2, category/0]).
+-export([run/1, run/2, category/0, info_to_params/1]).
 
 -define(COMMAND(In,Out,Params), 
   "ffmpeg -i "++In++" "++Params++" "++Out
@@ -28,7 +28,7 @@ run(#file{tmp_path = Path, name = Name, extension=Ext, dir = Dir},Opts) ->
 
   Info = video_probe:info(Path),
 
-  Command = ?COMMAND(Path,MP4, get_params(Info)),
+  Command = ?COMMAND(Path,MP4, info_to_params(Info)),
 
   ?D({"command",Command}),
   Data = os:cmd(Command),
@@ -46,8 +46,11 @@ run(#file{tmp_path = Path, name = Name, extension=Ext, dir = Dir},Opts) ->
   end.
 
 
-get_params(#video_info{audio_codec = Audio, video_codec = Video, video_size = Size, pixel_format = Pix}=_Info) ->
-  video_codec(Video)++pixel_format(Pix)++video_size(Size)++audio_codec(Audio).
+info_to_params(#video_info{audio_codec = Audio, video_codec = Video, video_size = Size, pixel_format = Pix}=_Info) ->
+  Format = pixel_format(Pix),
+  VCodec = video_codec(Video,Format),
+  Copy = VCodec =:= " -c:v copy ",
+  VCodec ++ Format ++ video_size(Size,Copy) ++ audio_codec(Audio).
 
 audio_codec(undefined) ->
   " -an ";
@@ -64,16 +67,16 @@ audio_codec("mp3") ->
 audio_codec(_) ->
   " -c:a libfdk_aac -ac 2 -ar 48000 -ab 192k ".
 
-video_codec(undefined) ->
+video_codec(undefined,_) ->
   " -vn ";
 
-video_codec([]) ->
+video_codec([],_) ->
   " -vn ";
 
-video_codec("h264") ->
+video_codec("h264","") ->
   " -c:v copy ";
 
-video_codec(_) ->
+video_codec(_,_) ->
   " -vcodec libx264 -profile:v baseline -preset slower -crf 18 ".
 
 pixel_format("yuv420p") ->
@@ -82,14 +85,14 @@ pixel_format("yuv420p") ->
 pixel_format(_) ->
   " -pix_fmt yuv420p ".
 
-video_size(Size) when Size < 480 ->
+video_size(Size,false) when Size < 480 ->
   " -vf \"scale=trunc(in_w/2)*2:trunc(in_h/2)*2\" ";
 
-video_size(Size) when Size < 500 ->
+video_size(Size,_) when Size < 500 ->
   " -video_size hd480 ";
 
-video_size(Size) when Size < 800 ->
+video_size(Size,_) when Size < 800 ->
   " -video_size hd720 ";
 
-video_size(_Size) ->
+video_size(_Size,_) ->
   " -video_size hd1080 ".
