@@ -681,8 +681,7 @@ pools_list_t_(_) ->
   ets:insert(?T_POOLS, #pool{node = test3, category = docass, enabled = false}),
   Pools = [P||{P}<-fyler_server:pools()],
   [
-    ?_assertEqual(2, proplists:get_value(total, lists:last(Pools))),
-    ?_assertEqual(docass, proplists:get_value(category, hd(Pools))) 
+    ?_assertEqual(3, length(Pools))
   ].
 
 tasks_test_() ->
