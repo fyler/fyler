@@ -1,4 +1,5 @@
-## 1.0.0-alpha
+## 1.0.0
+* vagrant-ansible [configuration](https://github.com/palkan/fyler-vm)
 * no more HTML/CSS, only JSON
 * only works with S3
 * add pool categories (and handlers categories)
