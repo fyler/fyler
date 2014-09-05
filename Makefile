@@ -22,7 +22,6 @@ compile:
 
 release: clean compile
 	@$(REBAR) generate force=1
-	chmod +x $(APPNAME)/bin/$(APPNAME)
 
 test-core:
 	@$(REBAR) skip_deps=true eunit apps=fyler suites=fyler_server,fyler_uploader,aws_cli,fyler_utils
