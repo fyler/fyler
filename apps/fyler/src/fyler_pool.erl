@@ -205,7 +205,9 @@ handle_info(try_next_task, #state{tasks = Tasks} = State) ->
 
 handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, active_tasks = Active} = State) ->
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
-                #task{} -> lists:keydelete(Ref, #task.worker, Active);
+                #task{} = Task -> 
+                  cleanup_task_files(Task),
+                  lists:keydelete(Ref, #task.worker, Active);
                 _ -> Active
               end,
   if Enabled
@@ -216,7 +218,9 @@ handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, acti
 
 handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, active_tasks = Active} = State) ->
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
-                #task{} = Task -> fyler_event:task_failed(Task, Other),
+                #task{} = Task -> 
+                  cleanup_task_files(Task),
+                  fyler_event:task_failed(Task, Other),
                   lists:keydelete(Ref, #task.worker, Active);
                 _ -> Active
               end,
@@ -249,3 +253,8 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
+
+%%% private functions %%%
+cleanup_task_files(#task{file = #file{dir = Dir}})->
+  ?D({cleanup, Dir}),
+  ulitos_file:recursively_del_dir(Dir).

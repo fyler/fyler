@@ -213,7 +213,7 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_buc
       Callback = proplists:get_value(callback, Options, undefined),
       TargetDir = case proplists:get_value(target_dir, Options) of
                     undefined -> filename:join(AwsDir,UniqueDir);
-                    TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Buckets) of
+                    TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Bucket) of
                                     {true, TargetPath} -> TargetPath;
                                     _ -> ?D({wrong_target_dir, TargetDir_}), filename:join(AwsDir,UniqueDir)
                                   end
@@ -550,7 +550,7 @@ path_to_test() ->
   ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("https://s3-eu-west-1.amazonaws.com/qwe/da.ta.ext", ["qwe"])),
   ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3.amazonaws.com/da.ta.ext", ["qwe", "qwo"])),
   ?assertEqual({true, "qwe", "qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext", ["qwe"])),
-  ?assertEqual({false, false, "http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext", "q")),
+  ?assertEqual({false, false, "http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext", ["q"])),
   ?assertEqual(false, parse_url("qwr/data.ext", [])).
 
 
@@ -573,6 +573,7 @@ restart_task_test() ->
 setup_() ->
   lager:start(),
   application:set_env(fyler,config,"fyler.config.test"),
+  ulitos_app:set_var(fyler, aws_s3_bucket, ["test"]),
   fyler:start().
 
 cleanup_(_) ->
@@ -701,6 +702,12 @@ tasks_test_() ->
       ?setup(
         fun run_task_t_/1
       )
+    },
+    {
+      "task params",
+      ?setup(
+        fun task_params_t_/1
+      )
     }
   ].
 
@@ -722,6 +729,18 @@ run_task_t_(_) ->
   [
     ?_assertEqual(ok, fyler_server:run_task("https://s3-eu-west-1.amazonaws.com/test/10.xls","do_nothing",[]))
   ].
+
+task_params_t_(_) ->
+  fyler_server:run_task("http://test.s3.amazonaws.com/record/stream.flv","recording_to_hls",[{stream_type,<<"media">>},{target_dir,<<"http://test.s3.amazonaws.com/record/stream/">>}, {callback,<<"http://callback">>}]),
+  Tasks = gen_server:call(fyler_server, tasks),
+  {{value,#task{file=File, category=Category, callback=Callback}},_} = queue:out(maps:get(video,Tasks)),
+  [
+    ?_assertMatch(#file{target_dir= "record/stream/", bucket="test", extension="flv", name="stream", url="test/record/stream.flv"},File),
+    ?_assertEqual(video, Category),
+    ?_assertEqual(<<"http://callback">>, Callback)
+  ].
+
+
 %%% handlers specs %%%
 
 do_nothing_test() ->
