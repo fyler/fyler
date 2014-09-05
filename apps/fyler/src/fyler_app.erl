@@ -17,7 +17,7 @@ start(_StartType, _StartArgs) ->
       undefined -> "fyler.config";
       Else -> Else
     end,
-    ulitos:load_config(fyler,ConfigPath),
+    ulitos_app:load_config(fyler,ConfigPath,["/etc"]),
     fyler_sup:start_link(?Config(role,server)).
 
 stop(_State) ->

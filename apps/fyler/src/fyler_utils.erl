@@ -70,7 +70,7 @@ stats_to_pg_string(#job_stats{status=Status,
   result_path = Results,
   task_type = Type}) ->
 
-  ResultsList = ulitos:join([binary_to_list(R) || R<-Results],","),
+  ResultsList = string:join([binary_to_list(R) || R<-Results],","),
 
   "'"++atom_to_list(Status)++"',"++integer_to_list(to_int(DTime))++","++integer_to_list(to_int(UTime))++","++integer_to_list(to_int(Size))++",'"++Path++"',"++integer_to_list(to_int(Time))++",'"++ResultsList++"','"++atom_to_list(Type)++"','"++error_to_s(Error)++"'".
 

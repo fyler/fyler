@@ -1,7 +1,7 @@
 %% Copyright
 -author("palkan").
 
--define(Config(X,Y),ulitos:get_var(fyler,X,Y)).
+-define(Config(X,Y),ulitos_app:get_var(fyler,X,Y)).
 
 -define(T_STATS,fyler_live_statistics).
 

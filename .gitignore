@@ -29,7 +29,7 @@ ebin/
 .eunit
 *.dump
 
-# other repos
-
+# other files
 apps/fyler/priv/fyler.config
 files/vm.args
+reltool.config
