@@ -71,7 +71,7 @@ Fyler's configuration can be stored in app.config or in fyler app priv dir or in
 
 Vagrant+ansible
 -------------
-[Here](https://github.com/palkan/fyler-vm)].
+[Here](https://github.com/palkan/fyler-vm).
 
 #### AWS
 
