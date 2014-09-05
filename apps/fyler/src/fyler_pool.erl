@@ -11,9 +11,6 @@
 -define(POOL_BUSY_TIMEOUT, 5000).
 -define(POLL_SERVER_TIMEOUT, 30000).
 
-
--define(APPS, [os_mon]).
-
 %% API
 -export([start_link/0]).
 
@@ -43,7 +40,6 @@ start_link() ->
 
 init(_Args) ->
   net_kernel:monitor_nodes(true),
-  ulitos_app:ensure_started(?APPS),
 
   ?D("Starting fyler pool"),
   Dir = ?Config(storage_dir, "ff"),
@@ -154,7 +150,8 @@ handle_info(pool_accepted,#state{finished_tasks = Finished} = State) ->
 
 
 handle_info(connect_to_server, #state{server_node = Node, category = Category, enabled = Enabled,active_tasks = Tasks} = State) ->
-  Connected = case net_kernel:connect(Node) of
+  ?D({connecting_to_node, Node}),
+  Connected = case net_kernel:connect_node(Node) of
                 true ->
                   {fyler_server,Node} ! {pool_connected,node(),Category,Enabled,length(Tasks)},
                   pending;

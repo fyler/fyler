@@ -6,6 +6,8 @@
 
 -behaviour(gen_fsm).
 
+-define(APPS, [os_mon]).
+
 %% API
 -export([start_link/0]).
 -export([start_monitor/0, stop_monitor/0]).
@@ -24,6 +26,7 @@
 %% API
 start_link() ->
   ?D({start_monitor}),
+  ulitos_app:ensure_started(?APPS),
   cpu_sup:util(),
   gen_fsm:start_link({local, ?MODULE}, ?MODULE, [], []).
 
