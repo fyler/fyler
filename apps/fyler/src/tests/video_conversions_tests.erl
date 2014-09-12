@@ -39,7 +39,6 @@ delete_files([File|Files]) ->
   delete_files(Files).
 
 setup_() ->
-  media:start(),
   lager:start(),
   file:make_dir(?PATH("tmp")).
 
@@ -88,7 +87,6 @@ video_recording_test_() ->
   ?setup(
     [
       {timeout, ?TIMEOUT, [av_rec_to_hls_t_()]},
-      {timeout, ?TIMEOUT, [av_rec_to_hls2_t_()]},
       {timeout, ?TIMEOUT, [screen_rec_to_hls_t_()]}
     ]
   ).
@@ -160,14 +158,6 @@ avi_to_hls_t_() ->
 av_rec_to_hls_t_() ->
   fun() ->
     Res = recording_to_hls:run(#file{tmp_path = ?PATH("stream_1.flv"), name = "stream_1", dir = ?PATH("")}),
-    ?assertMatch({ok,#job_stats{}}, Res),
-    {_, Stat} = Res,
-    ?assertEqual(1, length(Stat#job_stats.result_path))
-  end.
-
-av_rec_to_hls2_t_() ->
-  fun() ->
-    Res = recording_to_hls2:run(#file{tmp_path = ?PATH("stream_1.flv"), name = "stream_1", dir = ?PATH("")}),
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(1, length(Stat#job_stats.result_path))

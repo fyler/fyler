@@ -6,11 +6,7 @@ ERL_LIBS:=apps:deps
 
 
 ERL=erl +A 4 +K true
-ifeq (,$(wildcard ./rebar))
-	REBAR := $(shell which rebar)
-else
-	REBAR := ./rebar
-endif
+REBAR := which rebar || ./rebar
 
 
 all: deps compile
@@ -21,10 +17,28 @@ update:
 deps:
 	@$(REBAR) get-deps
 
+deps_server:
+	@$(REBAR) get-deps -C rebar_server.config
+
+deps_pool_document:
+	@$(REBAR) get-deps -C rebar_pool.config
+
+deps_pool_video:
+	@$(REBAR) get-deps -C rebar_pool_video.config
+
 compile:
 	@$(REBAR) compile
 
-release: clean compile
+compile_server:
+	@$(REBAR) compile -C rebar_server.config
+
+compile_pool_document:
+	@$(REBAR) compile -C rebar_pool.config
+
+compile_pool_video:
+	@$(REBAR) compile -C rebar_pool_video.config
+
+release:
 	@$(REBAR) generate force=1
 
 test-core:

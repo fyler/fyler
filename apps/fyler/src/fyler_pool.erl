@@ -56,13 +56,7 @@ init(_Args) ->
 
   ulitos_app:ensure_loaded(?Handlers),
 
-  Category = ?Config(category,undefined),
-  case Category of
-    video -> media:start();
-    _ -> ok
-  end,
-
-  {ok, #state{storage_dir = Dir,  category = Category, server_node = Server, max_active = ?Config(max_active,1)}}.
+  {ok, #state{storage_dir = Dir,  category = ?Config(category,undefined), server_node = Server, max_active = ?Config(max_active,1)}}.
 
 
 %% @doc
