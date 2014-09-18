@@ -335,7 +335,7 @@ handle_info({try_next_task, Category}, #state{tasks = Tasks, busy_timers = Timer
   Empty = queue:is_empty(NewList),
   if Empty
     -> ok;
-    true -> erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task)
+    true -> erlang:send_after(?TRY_NEXT_TIMEOUT, self(), {try_next_task, Category})
   end,
   {noreply, State#state{tasks=NewTasks, busy_timers = NewTimers}};
 
