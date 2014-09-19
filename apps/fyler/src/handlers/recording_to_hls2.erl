@@ -41,6 +41,22 @@ convert("mp3", "h264", Options = #{hls_writer := HlsWriter}, File) ->
   media_convert:flv_to_hls(AllOptions),
   wait_result(AllOptions, File);
 
+convert("libspeex", "", Options = #{hls_writer := HlsWriter}, File) ->
+  Audio = #{input => #{codec => speex, channels => 1, sample_rate => 16000}, output => #{codec => aac, channels => 2}},
+  AllOptions = Options#{audio => Audio, hls_writer => HlsWriter#{video => undefined}},
+  media_convert:flv_to_hls(AllOptions),
+  wait_result(AllOptions, File);
+
+convert("aac", "", Options = #{hls_writer := HlsWriter}, File) ->
+  AllOptions = Options#{hls_writer => HlsWriter#{video => undefined}},
+  media_convert:flv_to_hls(AllOptions),
+  wait_result(AllOptions, File);
+
+convert("mp3", "", Options = #{hls_writer := HlsWriter}, File) ->
+  AllOptions = Options#{hls_writer => HlsWriter#{audio => mp3, video => undefined}},
+  media_convert:flv_to_hls(AllOptions),
+  wait_result(AllOptions, File);
+
 convert(_Audio, "flashsv2", _Options, File) ->
   recording_to_hls:run(File, [{stream_type, <<"share">>}]);
 
