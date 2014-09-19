@@ -137,32 +137,9 @@ handle_info(_Info, State) ->
 -spec handle_task(Task::any(),State::#state{}) -> {reply,Reply::any(),NewState::#state{}}.
 
 handle_task({upload,Bucket,Dir,TargetDir,Acl,Handler}, State) ->
-  Reply = case filelib:is_dir(Dir) of
-            true -> AWSPath = ?AWS_URL(Bucket,TargetDir),
-              Start = ulitos:timestamp(),
-              ?D({start_upload,AWSPath}),
-              Res = aws_cli:copy_folder(Dir,AWSPath,Acl),
-              UpTime = ulitos:timestamp() - Start,
-              ?D({upload_complete, UpTime}),
-              case aws_cli:dir_exists(AWSPath) of
-                true ->
-                  {upload_complete, UpTime};
-                false -> 
-                  ?E({aws_sync_error,Res}),
-                  {error, aws_sync_failed}
-              end;
-            _ -> 
-              ?E({dir_not_found,Dir}),
-              {error, dir_not_found}
-          end,
-  
-  if is_pid(Handler) 
-    ->
-      Handler ! Reply;
-    true -> ok
-  end,
-
-  {reply,Reply,State};
+  AWSPath = ?AWS_URL(Bucket,TargetDir),
+  Pid = spawn(fun() -> do_upload(Dir,AWSPath,Acl,Handler) end),
+  {reply,Pid,State};
 
 
 handle_task(_Task,State) -> {reply,undefined,State}.
@@ -196,6 +173,31 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+do_upload(Dir,AWSPath,Acl,Handler) ->
+  Reply = case filelib:is_dir(Dir) of
+            true -> 
+              Start = ulitos:timestamp(),
+              ?D({start_upload,AWSPath}),
+              Res = aws_cli:copy_folder(Dir,AWSPath,Acl),
+              UpTime = ulitos:timestamp() - Start,
+              ?D({upload_complete, UpTime}),
+              case aws_cli:dir_exists(AWSPath) of
+                true ->
+                  {upload_complete, UpTime};
+                false -> 
+                  ?E({aws_sync_error,Res}),
+                  {error, aws_sync_failed}
+              end;
+            _ -> 
+              ?E({dir_not_found,Dir}),
+              {error, dir_not_found}
+          end,
+  if is_pid(Handler) 
+    ->
+      Handler ! Reply;
+    true -> ok
+  end.
+
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -205,6 +207,17 @@ code_change(_OldVsn, State, _Extra) ->
 setup_() ->
   meck:new(aws_cli,[non_strict]),
   meck:expect(aws_cli, copy_folder, fun(_,_,_) -> timer:sleep(1000) end),
+  meck:expect(aws_cli, dir_exists, fun(_) -> true end),
+  filelib:ensure_dir("./tmp/test"),
+  file:make_dir("./tmp/test"),
+  lager:start(),
+  {ok,Pid} = fyler_uploader:start_link(),
+  erlang:unlink(Pid),
+  Pid.
+
+setup2_() ->
+  meck:new(aws_cli,[non_strict]),
+  meck:expect(aws_cli, copy_folder, fun(_,_,_) -> timer:sleep(6000) end),
   meck:expect(aws_cli, dir_exists, fun(_) -> true end),
   filelib:ensure_dir("./tmp/test"),
   file:make_dir("./tmp/test"),
@@ -230,6 +243,7 @@ handle_task_test_() ->
       )
     }
   ].
+
 
 add_task_t_(_) ->
   [
@@ -260,6 +274,34 @@ wrong_dir_t_(_) ->
       end
     end
   ].
+
+
+handle_multiple_tasks_test_() ->
+  [
+    {setup, fun setup2_/0, fun cleanup_/1, 
+      [
+        {timeout, 7000, [add_many_tasks_t_()]}
+      ]
+    }
+  ].
+
+add_many_tasks_t_() ->
+  fun() ->
+    fyler_uploader:upload_to_aws("", "./tmp/test", "", "", self()),
+    fyler_uploader:upload_to_aws("", "./tmp/test", "", "", self()),
+    receive
+      {upload_complete,_} ->
+        receive
+          {upload_complete, _} -> 
+              ?assert(true)
+        after 1500
+          -> ?assert(false)
+        end   
+    after 6500
+      -> ?assert(false)
+    end
+  end
+.
 
 
 -endif.
