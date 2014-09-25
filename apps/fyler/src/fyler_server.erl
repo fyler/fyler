@@ -46,7 +46,7 @@
   pool_nodes = #{} ::#{atom() => atom()},
   busy_timers = #{},
   tasks_count = 1 :: non_neg_integer(),
-  tasks = #{} ::#{atom() => queue:queue(task())}
+  tasks = #{} ::#{atom() => fyler_queue:fyler_queue(task())}
 }).
 
 
@@ -227,7 +227,7 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_buc
       
       NewTasks = add_task(Task, Tasks),
 
-      Len = queue:len(maps:get(Category,NewTasks)),
+      Len = fyler_queue:len(maps:get(Category,NewTasks)),
 
       if Len > ?QUEUE_LENGTH_WM
         -> self() ! {alarm_too_many_tasks, Category};
@@ -315,8 +315,8 @@ handle_info({pool_connected, Node, Category, Enabled, Num}, #state{tasks = Tasks
   {noreply, State#state{tasks = NewTasks}};
 
 handle_info({try_next_task, Category}, #state{tasks = Tasks, busy_timers = Timers}=State) ->
-  List = maps:get(Category,Tasks,queue:new()),
-  {NewTasks,NewTimers,NewList} = case queue:out(List) of
+  List = maps:get(Category,Tasks,fyler_queue:new()),
+  {NewTasks,NewTimers,NewList} = case fyler_queue:out(List) of
     {empty, _} -> ?D(no_more_tasks),
                   {Tasks,Timers,List};
     {{value, #task{id = TaskId, type = TaskType, file = #file{url = TaskUrl}} = Task}, List2} ->
@@ -332,7 +332,7 @@ handle_info({try_next_task, Category}, #state{tasks = Tasks, busy_timers = Timer
           {Tasks, Timers_,List2}
       end
   end,
-  Empty = queue:is_empty(NewList),
+  Empty = fyler_queue:is_empty(NewList),
   if Empty
     -> ok;
     true -> erlang:send_after(?TRY_NEXT_TIMEOUT, self(), {try_next_task, Category})
@@ -458,8 +458,8 @@ remove_timer(Type,Timers) ->
 
 add_task(#task{category = Cat}=Task,Tasks) ->
   case maps:find(Cat,Tasks) of
-    error -> maps:put(Cat,queue:from_list([Task]),Tasks);
-    {ok, Q} -> maps:update(Cat,queue:in(Task,Q),Tasks)
+    error -> maps:put(Cat,fyler_queue:in(Task, fyler_queue:new()),Tasks);
+    {ok, Q} -> maps:update(Cat,fyler_queue:in(Task,Q),Tasks)
   end.
 
 %% @doc
@@ -565,10 +565,10 @@ restart_task_test() ->
     #current_task{task = #task{id=2, category = video}},
     #current_task{task = #task{id=3, category = docs}}
   ],
-  NewTasks = restart_tasks(Tasks, #{docs => queue:from_list([#task{id=5, category = docs}])}),
-  ?assertEqual(1, queue:len(maps:get(test,NewTasks))),
-  ?assertEqual(1, queue:len(maps:get(video,NewTasks))),
-  ?assertEqual(2, queue:len(maps:get(docs,NewTasks))).
+  NewTasks = restart_tasks(Tasks, #{docs => fyler_queue:in(#task{id=5, category = docs}, fyler_queue:new())}),
+  ?assertEqual(1, fyler_queue:len(maps:get(test,NewTasks))),
+  ?assertEqual(1, fyler_queue:len(maps:get(video,NewTasks))),
+  ?assertEqual(2, fyler_queue:len(maps:get(docs,NewTasks))).
 
 setup_() ->
   lager:start(),
@@ -715,7 +715,7 @@ add_task_t_(_) ->
   Res = fyler_server:run_task("https://test.s3.amazonaws.com/test.smth", "do_nothing", [{target_dir, <<"target/dir">>},{callback, <<"call_me.php">>}]),
   [
     ?_assertEqual(ok,Res),
-    ?_assertEqual(1, queue:len(maps:get(test,gen_server:call(fyler_server,tasks))))
+    ?_assertEqual(1, fyler_queue:len(maps:get(test,gen_server:call(fyler_server,tasks))))
   ].
 
 task_finished_t_(_) ->
@@ -733,7 +733,7 @@ run_task_t_(_) ->
 task_params_t_(_) ->
   fyler_server:run_task("http://test.s3.amazonaws.com/record/stream.flv","recording_to_hls",[{stream_type,<<"media">>},{target_dir,<<"http://test.s3.amazonaws.com/record/stream/">>}, {callback,<<"http://callback">>}]),
   Tasks = gen_server:call(fyler_server, tasks),
-  {{value,#task{file=File, category=Category, callback=Callback}},_} = queue:out(maps:get(video,Tasks)),
+  {{value,#task{file=File, category=Category, callback=Callback}},_} = fyler_queue:out(maps:get(video,Tasks)),
   [
     ?_assertMatch(#file{target_dir= "record/stream/", bucket="test", extension="flv", name="stream", url="test/record/stream.flv"},File),
     ?_assertEqual(video, Category),
