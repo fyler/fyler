@@ -46,7 +46,9 @@
   pool_nodes = #{} ::#{atom() => atom()},
   busy_timers = #{},
   tasks_count = 1 :: non_neg_integer(),
-  tasks = #{} ::#{atom() => fyler_queue:fyler_queue(task())}
+  tasks = #{} ::#{atom() => fyler_queue:fyler_queue(task())},
+  priorities = #{} :: #{atom() => #{atom() => pos_integer()}}
+
 }).
 
 
@@ -78,9 +80,11 @@ init(_Args) ->
 
   AwsDir = ?Config(aws_dir, "fyler/"),
 
+  Priorities = ?Config(priorities, #{}),
+
   ?I({server_start, AwsDir, Buckets}),
 
-  {ok, #state{cowboy_pid = Http, aws_bucket = Buckets, aws_dir = AwsDir}}.
+  {ok, #state{cowboy_pid = Http, aws_bucket = Buckets, aws_dir = AwsDir, priorities = Priorities}}.
 
 
 %% @doc
@@ -201,7 +205,7 @@ run_task(URL, Type, Options) ->
   gen_server:call(?MODULE, {run_task, URL, Type, Options}).
 
 
-handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_bucket = Buckets, aws_dir = AwsDir, tasks_count = TCount} = State) ->
+handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_bucket = Buckets, aws_dir = AwsDir, tasks_count = TCount, priorities = Priorities} = State) ->
   case parse_url(URL, Buckets) of
     {true, Bucket, Path, Name, Ext} ->
       %% generate temp uniq name
@@ -223,7 +227,9 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_buc
 
       Category = erlang:apply(Handler,category,[]),
 
-      Task = #task{id = TCount, type = Handler, category = Category, options = Options, callback = Callback, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = true, url = Path, name = Name, dir = UniqueDir, tmp_path = TmpName}},
+      Priority = proplists:get_value(priority, Options, low),
+
+      Task = #task{id = TCount, type = Handler, category = Category, options = Options, callback = Callback, priority = get_priority(Priorities, Category, Priority), file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = true, url = Path, name = Name, dir = UniqueDir, tmp_path = TmpName}},
       
       NewTasks = add_task(Task, Tasks),
 
@@ -456,10 +462,10 @@ remove_timer(Type,Timers) ->
 
 -spec add_task(task(),map()) -> map().
 
-add_task(#task{category = Cat}=Task,Tasks) ->
-  case maps:find(Cat,Tasks) of
-    error -> maps:put(Cat,fyler_queue:in(Task, fyler_queue:new()),Tasks);
-    {ok, Q} -> maps:update(Cat,fyler_queue:in(Task,Q),Tasks)
+add_task(#task{category = Cat, priority = Priority} = Task, Tasks) ->
+  case maps:find(Cat, Tasks) of
+    error -> maps:put(Cat, fyler_queue:in(Task, Priority, fyler_queue:new()), Tasks);
+    {ok, Q} -> maps:update(Cat, fyler_queue:in(Task, Priority, Q), Tasks)
   end.
 
 %% @doc
@@ -533,6 +539,16 @@ parse_url_dir(Path, Bucket) ->
 uniqueId() ->
   {Mega, S, Micro} = erlang:now(),
   integer_to_list(Mega * 1000000000000 + S * 1000000 + Micro).
+
+-spec get_priority(map(), atom(), atom()) -> pos_integer().
+
+get_priority(AllPriorities, Category, Priority) ->
+  case maps:get(Category, AllPriorities, 1) of
+    1 ->
+      1;
+    Priorities ->
+      maps:get(Priority, Priorities, 1)
+  end.
 
 
 
