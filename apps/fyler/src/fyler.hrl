@@ -28,7 +28,7 @@
   type ::atom(),
   category ::atom(),
   acl = public ::atom(),
-  priority = normal ::low|normal|high,
+  priority = 1 ::pos_integer(),
   file ::file(),
   callback = undefined ::binary(),
   worker ::reference(),
