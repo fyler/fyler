@@ -47,7 +47,7 @@ release: clean compile
 	@$(REBAR) generate force=1
 
 test-core:
-	@$(REBAR) skip_deps=true eunit apps=fyler suites=fyler_server,fyler_uploader,aws_cli,fyler_utils
+	@$(REBAR) skip_deps=true eunit apps=fyler suites=fyler_server,fyler_uploader,aws_cli,fyler_utils,fyler_queue
 
 test-docs:
 	@$(REBAR) skip_deps=true eunit suites=docs_conversions_tests
