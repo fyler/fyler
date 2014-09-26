@@ -8,7 +8,7 @@
 -export([run/1, run/2,category/0]).
 
 -define(COMMAND(In,Out,Params), 
-  "ffmpeg -i "++In++" "++Params++" -hls_time 10 -hls_list_size 999 "++Out
+  "ffmpeg -i "++In++" "++Params++" -hls_time 10 -hls_list_size 0 "++Out
   ).
 
 category() ->

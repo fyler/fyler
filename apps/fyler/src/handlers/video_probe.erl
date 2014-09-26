@@ -36,8 +36,10 @@ parse_info([{Stream}|T],Info) ->
 update_info(<<"video">>,Stream,Info) ->
   Codec = binary_to_list(proplists:get_value(<<"codec_name">>,Stream,<<>>)),
   Size = proplists:get_value(<<"width">>,Stream,0),
+  Height = proplists:get_value(<<"height">>,Stream,0),
+  BadSize = bad_size(Size,Height),
   Pix = binary_to_list(proplists:get_value(<<"pix_fmt">>,Stream,<<>>)),
-  Info#video_info{video_codec=Codec,pixel_format=Pix,video_size=Size};
+  Info#video_info{video_codec=Codec,pixel_format=Pix,video_size=Size, video_bad_size=BadSize};
 
 update_info(<<"audio">>,Stream,Info) ->
   Codec = binary_to_list(proplists:get_value(<<"codec_name">>,Stream,<<>>)),
@@ -45,3 +47,9 @@ update_info(<<"audio">>,Stream,Info) ->
 
 update_info(_,_,Info) ->
   Info.
+
+bad_size(W,H) when (W rem 2) =:= 1; (H rem 2) =:= 1 ->
+  true;
+
+bad_size(_,_) -> false.
+

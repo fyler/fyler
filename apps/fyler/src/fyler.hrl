@@ -87,5 +87,6 @@
   audio_codec = undefined ::string(),
   video_codec = undefined ::string(),
   video_size = undefined ::string(),
+  video_bad_size = false ::atom(),
   pixel_format = undefined ::string()
 }).

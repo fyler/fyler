@@ -46,11 +46,11 @@ run(#file{tmp_path = Path, name = Name, extension=Ext, dir = Dir},Opts) ->
   end.
 
 
-info_to_params(#video_info{audio_codec = Audio, video_codec = Video, video_size = Size, pixel_format = Pix}=_Info) ->
+info_to_params(#video_info{audio_codec = Audio, video_codec = Video, video_size = Size, pixel_format = Pix, video_bad_size=BadSize}=_Info) ->
   Format = pixel_format(Pix),
   VCodec = video_codec(Video,Format),
   Copy = VCodec =:= " -c:v copy ",
-  VCodec ++ Format ++ video_size(Size,Copy) ++ audio_codec(Audio).
+  VCodec ++ Format ++ video_size(Size,Copy,BadSize) ++ audio_codec(Audio).
 
 audio_codec(undefined) ->
   " -an ";
@@ -85,14 +85,11 @@ pixel_format("yuv420p") ->
 pixel_format(_) ->
   " -pix_fmt yuv420p ".
 
-video_size(Size,false) when Size < 480 ->
+video_size(Size,_,true) when Size < 800 ->
   " -vf \"scale=trunc(in_w/2)*2:trunc(in_h/2)*2\" ";
 
-video_size(Size,_) when Size < 500 ->
-  " -video_size hd480 ";
+video_size(Size,_,_) when Size > 1000->
+  " -video_size hd1080 ";
 
-video_size(Size,_) when Size < 800 ->
-  " -video_size hd720 ";
-
-video_size(_Size,_) ->
-  " -video_size hd1080 ".
+video_size(_,_,_) ->
+  "".
