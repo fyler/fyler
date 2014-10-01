@@ -25,7 +25,7 @@
 %% API
 -export([start_link/0]).
 
--export([run_task/3, clear_stats/0, pools/0, current_tasks/0, send_response/3, authorize/2, is_authorized/1, tasks_stats/0, tasks_stats/1, save_task_stats/1]).
+-export([run_task/3, clear_stats/0, pools/0, current_tasks/0, send_response/3, authorize/2, is_authorized/1, tasks_stats/0, tasks_stats/1, save_task_stats/1, task_status/1, cancel_task/1]).
 
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -47,8 +47,8 @@
   busy_timers = #{},
   tasks_count = 1 :: non_neg_integer(),
   tasks = #{} ::#{atom() => fyler_queue:fyler_queue(task())},
-  priorities = #{} :: #{atom() => #{atom() => pos_integer()}}
-
+  priorities = #{} :: #{atom() => #{atom() => pos_integer()}},
+  task_filter = [] :: [task()]
 }).
 
 
@@ -186,10 +186,10 @@ tasks_stats(Params) ->
 
 -spec save_task_stats(#job_stats{}) -> any().
 
-save_task_stats(#job_stats{} = Stats) ->
-  ValuesString = fyler_utils:stats_to_pg_string(Stats),
-  ?D({pg_insert_values,ValuesString}),
-  case pg_cli:equery("insert into tasks (status,download_time,upload_time,file_size,file_path,time_spent,result_path,task_type,error_msg) values (" ++ ValuesString ++ ")") of
+save_task_stats(#job_stats{id = Id} = Stats) ->
+  ValuesString = fyler_utils:stats_to_pg_update_string(Stats),
+  ?D({pg_update_values,ValuesString}),
+  case pg_cli:equery("update tasks set " ++ ValuesString ++ "where id = " ++ integer_to_list(Id)) of
     {ok, _} -> ok;
     Other -> ?D({pg_query_failed, Other})
   end.
@@ -204,6 +204,38 @@ save_task_stats(#job_stats{} = Stats) ->
 run_task(URL, Type, Options) ->
   gen_server:call(?MODULE, {run_task, URL, Type, Options}).
 
+%% @doc
+%% Get status of task
+%% @end
+
+-spec task_status(non_neg_integer()) -> undefined | queued | progress | success | abort.
+
+task_status(TaskId) ->
+  case ets:lookup(?T_STATS, TaskId) of
+    [#current_task{status = Status}] ->
+      Status;
+    _ ->
+      case pg_cli:equery("select status from tasks where id = " ++ integer_to_list(TaskId)) of
+        {ok, _, []} ->
+          undefined;
+        {ok, _, [{<<"progress">>}]} ->
+          progress;
+        {ok, _, [{<<"success">>}]} ->
+          success;
+        {ok, _, [{<<"abort">>}]} ->
+          abort;
+        {ok, _, [{Status}]} ->
+          Status;
+        Other ->
+          ?D({pg_query_failed, Other}),
+          undefined
+      end
+  end.
+
+-spec cancel_task(non_neg_integer()) -> ok.
+
+cancel_task(Id) ->
+  gen_server:call(fyler_server, {cancel_task, Id}).
 
 handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_bucket = Buckets, aws_dir = AwsDir, tasks_count = TCount, priorities = Priorities} = State) ->
   case parse_url(URL, Buckets) of
@@ -229,7 +261,9 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_buc
 
       Priority = proplists:get_value(priority, Options, low),
 
-      Task = #task{id = TCount, type = Handler, category = Category, options = Options, callback = Callback, priority = get_priority(Priorities, Category, Priority), file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = true, url = Path, name = Name, dir = UniqueDir, tmp_path = TmpName}},
+      {ok, 1, _, [{Id}]} = pg_cli:equery("insert into tasks (status, file_path, task_type) values ('progress', '" ++ Path ++ "', '" ++ atom_to_list(Handler) ++ "') returning id"),
+
+      Task = #task{id = Id, type = Handler, category = Category, options = Options, callback = Callback, priority = get_priority(Priorities, Category, Priority), file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = true, url = Path, name = Name, dir = UniqueDir, tmp_path = TmpName}},
       
       NewTasks = add_task(Task, Tasks),
 
@@ -238,13 +272,13 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_buc
       if Len > ?QUEUE_LENGTH_WM
         -> self() ! {alarm_too_many_tasks, Category};
         true -> ok
-      end, 
+      end,
 
-      ets:insert(?T_STATS, #current_task{id = TCount, type = list_to_atom(Type), url = Path, status = queued}),
+      ets:insert(?T_STATS, #current_task{id = Id, type = list_to_atom(Type), url = Path, status = queued}),
 
       self() ! {try_next_task, Category},
 
-      {reply, ok, State#state{tasks = NewTasks, tasks_count = TCount + 1}};
+      {reply, {ok, Id}, State#state{tasks = NewTasks, tasks_count = TCount + 1}};
     _ -> ?D({bad_url, URL, Buckets}),
       {reply, false, State}
   end;
@@ -269,6 +303,28 @@ handle_call({is_authorized, Token}, _From, #state{} = State) ->
 
 handle_call(pools, _From, State) ->
   {reply, ets:tab2list(?T_POOLS), State};
+
+handle_call({cancel_task, TaskId}, _From, #state{task_filter = Filter} = State) ->
+  case ets:lookup(?T_STATS, TaskId) of
+    [#current_task{status = queued}] ->
+      ets:delete(?T_STATS, TaskId),
+      case pg_cli:equery("update tasks set status = 'abort' where id = " ++ integer_to_list(TaskId)) of
+        {ok, _} -> ok;
+        Other -> ?D({pg_query_failed, Other})
+      end,
+      ?D({filtering, [TaskId|Filter]}),
+      {reply, ok, State#state{task_filter = [TaskId|Filter]}};
+    [#current_task{pool = Node, status = progress}] ->
+      ets:delete(?T_STATS, TaskId),
+      case pg_cli:equery("update tasks set status = 'abort' where id = " ++ integer_to_list(TaskId)) of
+        {ok, _} -> ok;
+        Other -> ?D({pg_query_failed, Other})
+      end,
+      rpc:cast(Node, fyler_pool, cancel_task, [TaskId]),
+      {reply, ok, State};
+    _ ->
+      {reply, ok, State}
+  end;
 
 
 handle_call(_Request, _From, State) ->
@@ -320,30 +376,30 @@ handle_info({pool_connected, Node, Category, Enabled, Num}, #state{tasks = Tasks
   end,
   {noreply, State#state{tasks = NewTasks}};
 
-handle_info({try_next_task, Category}, #state{tasks = Tasks, busy_timers = Timers}=State) ->
+handle_info({try_next_task, Category}, #state{tasks = Tasks, busy_timers = Timers, task_filter = Filter}=State) ->
   List = maps:get(Category,Tasks,fyler_queue:new()),
-  {NewTasks,NewTimers,NewList} = case fyler_queue:out(List) of
-    {empty, _} -> ?D(no_more_tasks),
-                  {Tasks,Timers,List};
-    {{value, #task{id = TaskId, type = TaskType, file = #file{url = TaskUrl}} = Task}, List2} ->
+  {NewTasks,NewTimers,NewFilter} = case out_with_filter(List, Filter) of
+    {{empty, _}, Filter_} -> ?D(no_more_tasks),
+                  {Tasks,Timers,List,Filter_};
+    {{{value, #task{id = TaskId, type = TaskType, file = #file{url = TaskUrl}} = Task}, NewList}, Filter_} ->
       case choose_pool(Category) of
         #pool{node = Node, active_tasks_num = Num, total_tasks = Total} = Pool ->
           send_to_pool(Node,Task),
           ets:insert(?T_STATS, #current_task{id = TaskId, task = Task, type = TaskType, url = TaskUrl, pool = Node, status = progress}),
           ets:insert(?T_POOLS, Pool#pool{active_tasks_num = Num + 1, total_tasks = Total + 1}),
           Timers_ = remove_timer(Category,Timers),
-          {maps:update(Category,List2,Tasks),Timers_,List2};
+          Empty = fyler_queue:is_empty(NewList),
+          if Empty
+            -> ok;
+            true -> erlang:send_after(?TRY_NEXT_TIMEOUT, self(), {try_next_task, Category})
+          end,
+          {maps:update(Category,NewList,Tasks),Timers_,Filter_};
         _ -> 
           Timers_ = add_timer(Category,Timers),
-          {Tasks, Timers_,List2}
+          {Tasks, Timers_,Filter}
       end
   end,
-  Empty = fyler_queue:is_empty(NewList),
-  if Empty
-    -> ok;
-    true -> erlang:send_after(?TRY_NEXT_TIMEOUT, self(), {try_next_task, Category})
-  end,
-  {noreply, State#state{tasks=NewTasks, busy_timers = NewTimers}};
+  {noreply, State#state{tasks=NewTasks, busy_timers = NewTimers, task_filter = NewFilter}};
 
 handle_info({alarm_high_idle_time, Type}, State) ->
   ?E({high_idle_time,Type}),
@@ -415,7 +471,7 @@ start_http_server() ->
       {"/tasks", tasks_handler, []},
       {"/pools", pools_handler, []},
       {"/api/auth", auth_handler, []},
-      {"/api/tasks", task_handler, []},
+      {"/api/tasks/[:id]", [{id, int}], task_handler, []},
       {'_', notfound_handler, []}
     ]}
   ]),
@@ -550,7 +606,33 @@ get_priority(AllPriorities, Category, Priority) ->
       maps:get(Priority, Priorities, 1)
   end.
 
+-spec out_with_filter(fyler_queue:fyler_queue(task()), [non_neg_integer()]) ->
+  {{empty, fyler_queue:fyler_queue(task())}, [non_neg_integer()]} |
+  {{{value, task()}, fyler_queue:fyler_queue(task())}, [non_neg_integer()]}.
 
+out_with_filter(Tasks, []) ->
+  {fyler_queue:out(Tasks), []};
+
+out_with_filter(Tasks, [TaskId]) ->
+  case fyler_queue:out(Tasks) of
+    {{value, #task{id = TaskId}}, NewTasks} ->
+      {fyler_queue:out(NewTasks), []};
+    Else ->
+      {Else, [TaskId]}
+  end;
+
+out_with_filter(Tasks, Filter) ->
+  case fyler_queue:out(Tasks) of
+    {{value, #task{id = TaskId}}, NewTasks} ->
+      case lists:member(TaskId, Filter) of
+        true ->
+          out_with_filter(NewTasks, lists:delete(TaskId, Filter));
+        false ->
+          {{{value, #task{id = TaskId}}, NewTasks}, Filter}
+      end;
+    Else ->
+      {Else, Filter}
+  end.
 
 -ifdef(TEST).
 
@@ -586,13 +668,22 @@ restart_task_test() ->
   ?assertEqual(1, fyler_queue:len(maps:get(video,NewTasks))),
   ?assertEqual(2, fyler_queue:len(maps:get(docs,NewTasks))).
 
+out_with_filter_test() ->
+  Task = #task{id = 1},
+  ?assertMatch({{{value, #task{id = 1}}, _}, [2]}, out_with_filter(fyler_queue:in(Task, fyler_queue:new()), [2])),
+  ?assertMatch({{{value, #task{id = 1}}, _}, [2, 3, 4]}, out_with_filter(fyler_queue:in(Task, fyler_queue:new()), [2, 3, 4])),
+  ?assertMatch({{empty, _}, []}, out_with_filter(fyler_queue:in(Task, fyler_queue:new()), [1])).
+
 setup_() ->
   lager:start(),
   application:set_env(fyler,config,"fyler.config.test"),
   ulitos_app:set_var(fyler, aws_s3_bucket, ["test"]),
-  fyler:start().
+  fyler:start(),
+  meck:new(pg_cli, [passthrough]),
+  meck:expect(pg_cli, equery, fun(_) -> {ok, 1, 1, [{1}]} end).
 
 cleanup_(_) ->
+  meck:unload(pg_cli),
   application:stop(lager),
   fyler:stop().
 
@@ -667,7 +758,7 @@ pools_ets_test_() ->
 add_pool_t_(_) ->
   fyler_server ! {pool_connected, test, docs, true, 11},
   [
-    ?_assertEqual(1, length(ets:tab2list(?T_POOLS)))
+    ?_assertEqual(1, length(fyler_server:pools()))
   ].
 
 decriment_tasks_num_t_(_) ->
@@ -730,7 +821,7 @@ tasks_test_() ->
 add_task_t_(_) ->
   Res = fyler_server:run_task("https://test.s3.amazonaws.com/test.smth", "do_nothing", [{target_dir, <<"target/dir">>},{callback, <<"call_me.php">>}]),
   [
-    ?_assertEqual(ok,Res),
+    ?_assertEqual({ok, 1},Res),
     ?_assertEqual(1, fyler_queue:len(maps:get(test,gen_server:call(fyler_server,tasks))))
   ].
 
@@ -743,7 +834,7 @@ task_finished_t_(_) ->
 
 run_task_t_(_) ->
   [
-    ?_assertEqual(ok, fyler_server:run_task("https://s3-eu-west-1.amazonaws.com/test/10.xls","do_nothing",[]))
+    ?_assertEqual({ok, 1}, fyler_server:run_task("https://s3-eu-west-1.amazonaws.com/test/10.xls","do_nothing",[]))
   ].
 
 task_params_t_(_) ->

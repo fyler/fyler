@@ -14,7 +14,7 @@
 %% API
 -export([start_link/0]).
 
--export([run_task/1, disable/0, enable/0]).
+-export([run_task/1, cancel_task/1, disable/0, enable/0]).
 
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -35,7 +35,8 @@ start_link() ->
   max_active = 1 ::non_neg_integer(),
   tasks = queue:new() :: queue:queue(task()),
   active_tasks = [] :: list(task()),
-  finished_tasks = [] ::list({atom(),task(),stats()})
+  finished_tasks = [] ::list({atom(),task(),stats()}),
+  pids = #{} :: #{reference() => pid()}
 }).
 
 init(_Args) ->
@@ -69,6 +70,13 @@ run_task(Task) ->
   gen_server:call(?MODULE, {run_task, Task}).
 
 %% @doc
+%% Cancel the task
+%% @end
+
+cancel_task(TaskId) ->
+  gen_server:call(?MODULE, {cancel_task, TaskId}).
+
+%% @doc
 %% Stop running tasks and queue them.
 %% @end
 
@@ -95,6 +103,19 @@ handle_call({run_task, Task}, _From, #state{enabled = Enabled, tasks = Tasks} = 
     true -> ok
   end,
   {reply, ok, State#state{tasks = NewTasks}};
+
+handle_call({cancel_task, TaskId}, _From, #state{tasks = Tasks, active_tasks = Active, pids = Pids} = State) ->
+  case lists:keyfind(TaskId, #task.id, Active) of
+    #task{worker = Ref} ->
+      Pid = maps:get(Ref, Pids),
+      try fyler_sup:stop_worker(Pid)
+      catch
+        _:_ -> ok
+      end,
+      {reply, ok, State};
+    _ ->
+      {reply, ok, State#state{tasks = queue:filter(fun(#task{id = Id}) when Id == TaskId -> false; (_) -> true end, Tasks)}}
+  end;
 
 handle_call({enabled, true}, _From, #state{enabled = false, connected = Connected} = State) ->
   self() ! next_task,
@@ -162,24 +183,24 @@ handle_info(connect_to_server, #state{server_node = Node, category = Category, e
   {noreply,State#state{connected = Connected}};
 
 
-handle_info(next_task, #state{tasks = Tasks, active_tasks = Active, storage_dir = Dir} = State) ->
-  {NewTasks, NewActive} = case queue:out(Tasks) of
-                            {empty, _} -> {Tasks, Active};
-                            {{value, #task{file=#file{dir = UniqDir, tmp_path = Path}=File}=Task}, Tasks2} ->
-                              TmpDir = filename:join(Dir, UniqDir),
-                              
-                              case file:make_dir(TmpDir) of
-                                ok -> ok;
-                                {error, eexist} -> ok
-                              end,
-                              
-                              NewTask = Task#task{file=File#file{dir = TmpDir, tmp_path = filename:join(Dir,Path)}},
-                              {ok, Pid} = fyler_sup:start_worker(NewTask),
-                              Ref = erlang:monitor(process, Pid),
-                              Active2 = lists:keystore(Ref, #task.worker, Active, NewTask#task{worker = Ref}),
-                              {Tasks2, Active2}
-                          end,
-  {noreply, State#state{active_tasks = NewActive, tasks = NewTasks}};
+handle_info(next_task, #state{tasks = Tasks, active_tasks = Active, storage_dir = Dir, pids = Pids} = State) ->
+  case queue:out(Tasks) of
+    {empty, _} ->
+      {noreply, State};
+    {{value, #task{file=#file{dir = UniqDir, tmp_path = Path}=File}=Task}, NewTasks} ->
+      TmpDir = filename:join(Dir, UniqDir),
+
+      case file:make_dir(TmpDir) of
+        ok -> ok;
+        {error, eexist} -> ok
+      end,
+
+      NewTask = Task#task{file=File#file{dir = TmpDir, tmp_path = filename:join(Dir,Path)}},
+      {ok, Pid} = fyler_sup:start_worker(NewTask),
+      Ref = erlang:monitor(process, Pid),
+      NewActive = lists:keystore(Ref, #task.worker, Active, NewTask#task{worker = Ref}),
+      {noreply, State#state{active_tasks = NewActive, tasks = NewTasks, pids = maps:put(Ref, Pid, Pids)}}
+  end;
 
 
 handle_info(try_next_task, #state{enabled = false} = State) ->
@@ -200,9 +221,9 @@ handle_info(try_next_task, #state{tasks = Tasks} = State) ->
   {noreply, State};
 
 
-handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, active_tasks = Active} = State) ->
+handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, active_tasks = Active, pids = Pids} = State) ->
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
-                #task{} = Task -> 
+                #task{} = Task ->
                   cleanup_task_files(Task),
                   lists:keydelete(Ref, #task.worker, Active);
                 _ -> Active
@@ -211,9 +232,22 @@ handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, acti
     -> self() ! next_task;
     true -> ok
   end,
-  {noreply, State#state{active_tasks = NewActive}};
+  {noreply, State#state{active_tasks = NewActive, pids = maps:remove(Ref, Pids)}};
 
-handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, active_tasks = Active} = State) ->
+handle_info({'DOWN', Ref, process, _Pid, killed}, #state{enabled = Enabled, active_tasks = Active, pids = Pids} = State) ->
+  NewActive = case lists:keyfind(Ref, #task.worker, Active) of
+                #task{} = Task ->
+                  cleanup_task_files(Task),
+                  lists:keydelete(Ref, #task.worker, Active);
+                _ -> Active
+              end,
+  if Enabled
+    -> self() ! next_task;
+    true -> ok
+  end,
+  {noreply, State#state{active_tasks = NewActive, pids = maps:remove(Ref, Pids)}};
+
+handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, active_tasks = Active, pids = Pids} = State) ->
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
                 #task{} = Task -> 
                   cleanup_task_files(Task),
@@ -225,7 +259,7 @@ handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, activ
     -> self() ! next_task;
     true -> ok
   end,
-  {noreply, State#state{active_tasks = NewActive}};
+  {noreply, State#state{active_tasks = NewActive, pids = maps:remove(Ref, Pids)}};
 
 
 handle_info({nodedown,Node},#state{server_node = Node}=State) ->
