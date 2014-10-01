@@ -27,8 +27,8 @@ send(Path,Type,Callback,Token) ->
   HTTPOptions = [],
   Options = [],
   io:format("Send task: ~p ~p~n",[Path,Type]),
-  {ok, {R,_,_}} = httpc:request(Method, {URL, Header, Mime, Body}, HTTPOptions, Options),
-  io:format("Response: ~p~n",[R]).
+  {ok, {R,_,B}} = httpc:request(Method, {URL, Header, Mime, Body}, HTTPOptions, Options),
+  io:format("Response: ~p~n Body:~p~n",[R,B]).
 
 body(Path,Type,undefined,Token) ->
   "url="++Path++"&type="++Type++"&fkey="++Token;

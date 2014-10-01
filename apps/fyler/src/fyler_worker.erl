@@ -78,13 +78,13 @@ handle_info({process_complete, Stats}, #state{task = #task{file = #file{name = N
   fyler_uploader:upload_to_aws(Bucket, Dir, TargetDir, Acl, self()),
   {noreply, State#state{stats = Stats}};
 
-handle_info({upload_complete, UpTime}, #state{stats=Stats,task = #task{file = #file{url = Path, size = Size}, type = Type} = Task, download_time = Time} = State) ->
-  gen_server:cast(fyler_pool,{task_completed,Task, Stats#job_stats{download_time = Time, upload_time = UpTime, file_path = Path, file_size = Size, status = success, task_type = Type, ts = ulitos:timestamp()}}),
+handle_info({upload_complete, UpTime}, #state{stats=Stats,task = #task{id = Id, file = #file{url = Path, size = Size}, type = Type} = Task, download_time = Time} = State) ->
+  gen_server:cast(fyler_pool,{task_completed,Task, Stats#job_stats{id = Id, download_time = Time, upload_time = UpTime, file_path = Path, file_size = Size, status = success, task_type = Type, ts = ulitos:timestamp()}}),
   {stop, normal, State};
 
-handle_info({error, Reason}, #state{task = #task{file = #file{url = Path, size = Size}, type = Type}=Task} = State) ->
+handle_info({error, Reason}, #state{task = #task{id = Id, file = #file{url = Path, size = Size}, type = Type}=Task} = State) ->
   ?D({error,Reason}),
-  gen_server:cast(fyler_pool,{task_failed,Task,#job_stats{error_msg = Reason, status = failed, ts = ulitos:timestamp(), task_type = Type, file_path = Path, file_size = Size}}),
+  gen_server:cast(fyler_pool,{task_failed,Task,#job_stats{id = Id, error_msg = Reason, status = failed, ts = ulitos:timestamp(), task_type = Type, file_path = Path, file_size = Size}}),
   {stop, normal, State};
 
 handle_info(_Info, State) ->

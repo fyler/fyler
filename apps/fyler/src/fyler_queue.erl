@@ -32,8 +32,11 @@ in(Item, Priority, {[], 0, 0}) ->
 in(Item, Priority, {[], Start, Counter}) ->
   {[{Priority, {queue:in({Priority, Item}, queue:new()), (((Counter - 1) div Priority) + 1) * Priority}}], Start, Counter};
 
-in(Item, Priority, {[{MinPriority, {Queue, NextCounter}}|Queues], Start, Counter}) when Priority < MinPriority ->
+in(Item, Priority, {[{MinPriority, {Queue, NextCounter}}|Queues], Start, Counter}) when Priority < MinPriority, Start =< Priority ->
   {[{Priority, {queue:in({Priority, Item}, queue:new()), (((Counter - 1) div Priority) + 1) * Priority}}, {MinPriority, {Queue, NextCounter}}|Queues], Start, Counter};
+
+in(Item, Priority, {[{MinPriority, {Queue, NextCounter}}|Queues], Start, Counter}) when Priority < MinPriority ->
+  {[{Priority, {queue:in({Priority, Item}, queue:new()), ((Counter div Priority) + 1) * Priority}}, {MinPriority, {Queue, NextCounter}}|Queues], Start, Counter};
 
 in(Item, Priority, {[{MinPriority, {Queue, NextCounter}}|Queues], Start, Counter}) ->
   {[{MinPriority, {queue:in({Priority, Item}, Queue), NextCounter}}|Queues], Start, Counter}.
@@ -41,6 +44,7 @@ in(Item, Priority, {[{MinPriority, {Queue, NextCounter}}|Queues], Start, Counter
 -spec out(Q1 :: fyler_queue(Item)) ->
   {{value, Item}, Q2 :: fyler_queue(Item)} |
   {empty, Q1 :: fyler_queue(Item)}.
+
 out({[], 0, 0}) ->
   {empty, {[], 0, 0}};
 

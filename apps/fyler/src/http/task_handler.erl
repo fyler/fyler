@@ -4,40 +4,91 @@
 
 -export([
   init/3,
+  rest_init/2,
+  malformed_request/2,
   process_post/2,
   allowed_methods/2,
   is_authorized/2,
   content_types_accepted/2,
   content_types_provided/2,
-  to_json/2,
+  resource_exists/2,
+  get_task_status/2,
+  delete_resource/2,
+  delete_completed/2,
   terminate/3
 ]).
+
+-record(state, {
+  method :: get | post, delete,
+  id :: non_neg_integer(),
+  status :: queued | progress | success | abort
+}).
 
 init({tcp, http}, _Req, _Opts) ->
   {upgrade, protocol, cowboy_rest}.
 
-is_authorized(Req,State) ->
+rest_init(Req, _Opt) ->
+  {ok, Req, #state{}}.
+
+allowed_methods(Req, State) ->
+  {[<<"GET">>, <<"POST">>, <<"DELETE">>], Req, State}.
+
+malformed_request(Req, #state{} = State) ->
+  {BindingId, _} = cowboy_req:binding(id, Req),
+  case cowboy_req:method(Req) of
+    {<<"POST">>, _} ->
+      if BindingId =:= undefined -> {false, Req, State#state{method = post}};
+                            true -> {true, Req, State}
+      end;
+    {<<"GET">>, _} ->
+      if BindingId =:= undefined -> {true, Req, State};
+                            true -> {false, Req, State#state{method = get, id = BindingId}}
+      end;
+    {<<"DELETE">>, _} ->
+      if BindingId =:= undefined -> {true, Req, State};
+                            true -> {false, Req, State#state{method = delete, id = BindingId}}
+      end
+  end.
+
+is_authorized(Req, #state{method = get} = State) ->
+  Reply = case cowboy_req:qs_val(<<"fkey">>, Req) of
+            {undefined, _} -> {false,<<"">>};
+            {Key, _} -> fyler_server:is_authorized(Key)
+          end,
+  {Reply, Req, State};
+
+is_authorized(Req, State) ->
   Reply = case cowboy_req:body_qs(Req) of
-    {ok, X, _} -> ?D({req_data,X}),
-                  case proplists:get_value(<<"fkey">>,X) of
-                    undefined -> {false,<<"">>};
-                    Key -> fyler_server:is_authorized(Key)
-                  end;
+            {ok, X, _} ->
+              ?D({req_data,X}),
+              case proplists:get_value(<<"fkey">>,X) of
+                undefined -> {false,<<"">>};
+                Key -> fyler_server:is_authorized(Key)
+              end;
             _ -> {false,<<"">>}
-              end,
-  {Reply,Req,State}.
+          end,
+  {Reply, Req, State}.
 
 content_types_accepted(Req, State) ->
   {[{'*',process_post}],Req,State}.
 
 content_types_provided(Req, State) ->
-  {[{{<<"text">>, <<"html">>, '*'}, to_json}],Req,State}.
+  {[{{<<"text">>, <<"html">>, '*'}, get_task_status}],Req,State}.
 
-allowed_methods(Req, State) ->
-  {[<<"GET">>, <<"POST">>, <<"DELETE">>], Req, State}.
+resource_exists(Req, #state{method = post} = State) ->
+  {false, Req, State};
 
-to_json(Req,State) ->
-  {true,Req,State}.
+resource_exists(Req, #state{id = Id} = State) ->
+  case fyler_server:task_status(Id) of
+    undefined ->
+      {false, Req, State};
+    Status ->
+      {true, Req, State#state{status = Status}}
+  end.
+
+get_task_status(Req, #state{status = Status} = State) ->
+  {jiffy:encode({[{status, Status}]}), cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req), State}.
+
 
 process_post(Req, State) ->
   Resp = case cowboy_req:body_qs(Req) of
@@ -46,9 +97,12 @@ process_post(Req, State) ->
         [Url, Type, Options] -> 
           ?D({post_data, Url, Type}), 
           case fyler_server:run_task(Url, Type, Options) of
-            ok -> cowboy_req:set_resp_body(<<"ok">>, Req);
-            _ -> {ok,Resp_} = cowboy_req:reply(403,Req),
-                  Resp_
+            {ok, Id} ->
+              Resp_ = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req),
+              cowboy_req:set_resp_body(jiffy:encode({[{id, Id}]}), Resp_);
+            _ ->
+              {ok,Resp_} = cowboy_req:reply(403,Req),
+              Resp_
           end;
         false -> ?D(<<"wrong post data">>),
                   {ok,Resp_} = cowboy_req:reply(403,Req),
@@ -60,6 +114,21 @@ process_post(Req, State) ->
       Resp_
   end,
   {true, Resp, State}.
+
+delete_resource(Req, #state{id = Id, status = queued} = State) ->
+  fyler_server:cancel_task(Id),
+  {true, Req, State};
+
+delete_resource(Req, #state{id = Id, status = progress} = State) ->
+  fyler_server:cancel_task(Id),
+  {true, Req, State};
+
+delete_resource(Req, State) ->
+  {true, Req, State}.
+
+delete_completed(Req, State) ->
+  Resp = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req),
+  {true, cowboy_req:set_resp_body(jiffy:encode({[{status, ok}]}), Resp), State}.
 
 validate_post_data(Data) ->
   ?D(Data),

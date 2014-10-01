@@ -5,6 +5,7 @@
 -export([
   task_record_to_proplist/1, 
   stats_to_pg_string/1,
+  stats_to_pg_update_string/1,
   stats_to_proplist/1,
   current_task_to_proplist/1,
   pool_to_proplist/1
@@ -74,6 +75,18 @@ stats_to_pg_string(#job_stats{status=Status,
 
   "'"++atom_to_list(Status)++"',"++integer_to_list(to_int(DTime))++","++integer_to_list(to_int(UTime))++","++integer_to_list(to_int(Size))++",'"++Path++"',"++integer_to_list(to_int(Time))++",'"++ResultsList++"','"++atom_to_list(Type)++"','"++error_to_s(Error)++"'".
 
+stats_to_pg_update_string(#job_stats{status=Status,
+  download_time = DTime,
+  upload_time = UTime,
+  file_size = Size,
+  time_spent = Time,
+  error_msg = Error,
+  result_path = Results}) ->
+
+  ResultsList = string:join([binary_to_list(R) || R<-Results],","),
+
+  "status = '"++atom_to_list(Status)++"', download_time = "++integer_to_list(to_int(DTime))++", upload_time = "++integer_to_list(to_int(UTime))++", file_size = "++integer_to_list(to_int(Size))++", time_spent = "++integer_to_list(to_int(Time))++", result_path = '"++ResultsList++"', error_msg = '"++error_to_s(Error)++"'".
+
 
 %% @doc Convert epgsql time fromat to number.
 %% @end
@@ -106,6 +119,9 @@ error_to_s(Er) when is_binary(Er) ->
 
 error_to_s({error,Reason}) ->
   error_to_s(Reason);
+
+error_to_s(null) ->
+  [];
 
 error_to_s(_) ->
   "Error".
@@ -144,6 +160,20 @@ rec_to_string_test_() ->
     result_path= [<<"path1">>,<<"path2">>],
     task_type= do_nothing,
     error_msg= "command not found"}))
+  ].
+
+rec_to_update_string_test_() ->
+  [
+    ?_assertEqual("status = 'success', download_time = 1, upload_time = 1, file_size = 1, time_spent = 1, result_path = 'path1,path2', error_msg = 'command not found'", stats_to_pg_update_string(#job_stats{id=1,
+      status= success,
+      download_time=1,
+      upload_time=1,
+      file_size=1,
+      file_path= "path/to/file",
+      time_spent=1,
+      result_path= [<<"path1">>,<<"path2">>],
+      task_type= do_nothing,
+      error_msg= "command not found"}))
   ].
 
 -endif.
