@@ -3,8 +3,7 @@
 
 
 -export([
-  init/3,
-  rest_init/2,
+  init/2,
   malformed_request/2,
   process_post/2,
   allowed_methods/2,
@@ -14,8 +13,7 @@
   resource_exists/2,
   get_task_status/2,
   delete_resource/2,
-  delete_completed/2,
-  terminate/3
+  delete_completed/2
 ]).
 
 -record(state, {
@@ -24,36 +22,34 @@
   status :: queued | progress | success | abort
 }).
 
-init({tcp, http}, _Req, _Opts) ->
-  {upgrade, protocol, cowboy_rest}.
-
-rest_init(Req, _Opt) ->
-  {ok, Req, #state{}}.
+init(Req, _Opts) ->
+  {cowboy_rest, Req, #state{}}.
 
 allowed_methods(Req, State) ->
   {[<<"GET">>, <<"POST">>, <<"DELETE">>], Req, State}.
 
 malformed_request(Req, #state{} = State) ->
-  {BindingId, _} = cowboy_req:binding(id, Req),
+  BindingId = cowboy_req:binding(id, Req),
   case cowboy_req:method(Req) of
-    {<<"POST">>, _} ->
+    <<"POST">> ->
       if BindingId =:= undefined -> {false, Req, State#state{method = post}};
                             true -> {true, Req, State}
       end;
-    {<<"GET">>, _} ->
+    <<"GET">> ->
       if BindingId =:= undefined -> {true, Req, State};
                             true -> {false, Req, State#state{method = get, id = BindingId}}
       end;
-    {<<"DELETE">>, _} ->
+    <<"DELETE">> ->
       if BindingId =:= undefined -> {true, Req, State};
                             true -> {false, Req, State#state{method = delete, id = BindingId}}
       end
   end.
 
 is_authorized(Req, #state{method = get} = State) ->
-  Reply = case cowboy_req:qs_val(<<"fkey">>, Req) of
-            {undefined, _} -> {false,<<"">>};
-            {Key, _} -> fyler_server:is_authorized(Key)
+  Opts = cowboy_req:parse_qs(Req),
+  Reply = case proplists:get_value(<<"fkey">>, Opts, undefined) of
+            undefined -> {false,<<"">>};
+            Key -> fyler_server:is_authorized(Key)
           end,
   {Reply, Req, State};
 
@@ -101,17 +97,14 @@ process_post(Req, State) ->
               Resp_ = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req),
               cowboy_req:set_resp_body(jiffy:encode({[{id, Id}]}), Resp_);
             _ ->
-              {ok,Resp_} = cowboy_req:reply(403,Req),
-              Resp_
+              cowboy_req:reply(403,Req)
           end;
         false -> ?D(<<"wrong post data">>),
-                  {ok,Resp_} = cowboy_req:reply(403,Req),
-                  Resp_
+                  cowboy_req:reply(403,Req)
       end;
     Else -> 
       ?D({<<"no data">>,Else}),
-      {ok,Resp_} = cowboy_req:reply(403,Req),
-      Resp_
+      cowboy_req:reply(403,Req)
   end,
   {true, Resp, State}.
 
@@ -141,6 +134,3 @@ validate_post_data(Data) ->
     Reply;
     true -> false
   end.
-
-terminate(_Reason, _Req, _State) ->
-  ok.

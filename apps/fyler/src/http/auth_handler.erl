@@ -3,15 +3,14 @@
 
 
 -export([
-  init/3,
+  init/2,
   process_post/2,
   allowed_methods/2,
-  content_types_accepted/2,
-  terminate/3
+  content_types_accepted/2
 ]).
 
-init({tcp, http}, _Req, _Opts) ->
-  {upgrade, protocol, cowboy_rest}.
+init(Req, Opts) ->
+  {cowboy_rest, Req, Opts}.
 
 content_types_accepted(Req, State) ->
   {[{'*',process_post}],Req,State}.
@@ -25,16 +24,13 @@ process_post(Req, State) ->
       case validate_post_data(X) of
         [Login,Pass] -> case fyler_server:authorize(Login,Pass) of
                           {ok,Token} -> ?D({authorized,Token}),
-                                        {ok, Req2} = cowboy_req:reply(200, [], jiffy:encode({[{token, list_to_binary(Token)}]}), Req),
-                                        {halt,Req2,State};
-                          false -> {ok, Req2} = cowboy_req:reply(401, Req),
-                                   {halt,Req2,State}
+                                        Resp = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req),
+                                        {halt, cowboy_req:reply(200, [], jiffy:encode({[{token, list_to_binary(Token)}]}), Resp), State};
+                          false -> {halt, cowboy_req:reply(401, Req), State}
                         end;
-        false -> {ok, Req2} = cowboy_req:reply(401, Req),
-                 {halt,Req2,State}
+        false -> {halt, cowboy_req:reply(401, Req), State}
       end;
-    _ -> {ok, Req2} = cowboy_req:reply(401, Req),
-         {halt,Req2,State}
+    _ -> {halt, cowboy_req:reply(401, Req), State}
   end.
 
 validate_post_data(Data) ->
@@ -46,6 +42,3 @@ validate_post_data(Data) ->
     Reply;
     true -> false
   end.
-
-terminate(_Reason, _Req, _State) ->
-  ok.
