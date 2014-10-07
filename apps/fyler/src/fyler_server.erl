@@ -312,7 +312,6 @@ handle_call({cancel_task, TaskId}, _From, #state{task_filter = Filter} = State) 
         {ok, _} -> ok;
         Other -> ?D({pg_query_failed, Other})
       end,
-      ?D({filtering, [TaskId|Filter]}),
       {reply, ok, State#state{task_filter = [TaskId|Filter]}};
     [#current_task{pool = Node, status = progress}] ->
       ets:delete(?T_STATS, TaskId),
@@ -380,7 +379,7 @@ handle_info({try_next_task, Category}, #state{tasks = Tasks, busy_timers = Timer
   List = maps:get(Category,Tasks,fyler_queue:new()),
   {NewTasks,NewTimers,NewFilter} = case out_with_filter(List, Filter) of
     {{empty, _}, Filter_} -> ?D(no_more_tasks),
-                  {Tasks,Timers,List,Filter_};
+                  {Tasks,Timers,Filter_};
     {{{value, #task{id = TaskId, type = TaskType, file = #file{url = TaskUrl}} = Task}, NewList}, Filter_} ->
       case choose_pool(Category) of
         #pool{node = Node, active_tasks_num = Num, total_tasks = Total} = Pool ->
