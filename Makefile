@@ -6,7 +6,11 @@ ERL_LIBS:=apps:deps
 
 
 ERL=erl +A 4 +K true
-REBAR := which rebar || ./rebar
+ifeq (,$(wildcard ./rebar))
+	REBAR := $(shell which rebar)
+else
+	REBAR := ./rebar
+endif
 
 
 all: deps compile
