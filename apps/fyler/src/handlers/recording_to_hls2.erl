@@ -69,7 +69,7 @@ wait_result(Options, File) ->
     {task_complete, Options} ->
       ok;
     {task_failed, Reason, Options} ->
-      ?D({"media_convert:flv_to_hls failed", Reason}),
+      ?E({"media_convert:flv_to_hls failed", Reason}),
       video_to_hls:run(File)
   after 3600000 ->
     {error, timeout}

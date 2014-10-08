@@ -30,6 +30,7 @@ init([#task{type = Type, file = #file{url = Path}} = Task]) ->
   ?D({start_task, Path, Type, self()}),
   process_flag(trap_exit, true),
   self() ! download,
+  lager:md([{context, {[{type, Type}, {path, list_to_binary(Path)}]}}]),
   {ok, #state{task = Task}}.
 
 handle_call(_Request, _From, State) ->
@@ -83,7 +84,7 @@ handle_info({upload_complete, UpTime}, #state{stats=Stats,task = #task{id = Id, 
   {stop, normal, State};
 
 handle_info({error, Reason}, #state{task = #task{id = Id, file = #file{url = Path, size = Size}, type = Type}=Task} = State) ->
-  ?D({error,Reason}),
+  ?E({error,Reason}),
   gen_server:cast(fyler_pool,{task_failed,Task,#job_stats{id = Id, error_msg = Reason, status = failed, ts = ulitos:timestamp(), task_type = Type, file_path = Path, file_size = Size}}),
   {stop, normal, State};
 

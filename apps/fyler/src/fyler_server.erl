@@ -175,7 +175,7 @@ tasks_stats(Params) ->
 
   Values = case pg_cli:equery("select * from tasks "++Query++"order by "++OrderBy++" "++Order++" offset "++Offset++" limit "++Limit) of
              {ok, _, List} -> List;
-             Other -> ?D({pg_query_failed, Other})
+             Other -> ?E({pg_query_failed, Other})
            end,
   [fyler_utils:stats_to_proplist(fyler_utils:task_record_to_proplist(V)) || V <- Values].
 
@@ -191,7 +191,7 @@ save_task_stats(#job_stats{id = Id} = Stats) ->
   ?D({pg_update_values,ValuesString}),
   case pg_cli:equery("update tasks set " ++ ValuesString ++ "where id = " ++ integer_to_list(Id)) of
     {ok, _} -> ok;
-    Other -> ?D({pg_query_failed, Other})
+    Other -> ?E({pg_query_failed, Other})
   end.
 
 
@@ -227,7 +227,7 @@ task_status(TaskId) ->
         {ok, _, [{Status}]} ->
           Status;
         Other ->
-          ?D({pg_query_failed, Other}),
+          ?E({pg_query_failed, Other}),
           undefined
       end
   end.
@@ -251,7 +251,7 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_buc
                     undefined -> filename:join(AwsDir,UniqueDir);
                     TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Bucket) of
                                     {true, TargetPath} -> TargetPath;
-                                    _ -> ?D({wrong_target_dir, TargetDir_}), filename:join(AwsDir,UniqueDir)
+                                    _ -> ?E({wrong_target_dir, TargetDir_}), filename:join(AwsDir,UniqueDir)
                                   end
                   end,
 
@@ -279,7 +279,7 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_buc
       self() ! {try_next_task, Category},
 
       {reply, {ok, Id}, State#state{tasks = NewTasks, tasks_count = TCount + 1}};
-    _ -> ?D({bad_url, URL, Buckets}),
+    _ -> ?E({bad_url, URL, Buckets}),
       {reply, false, State}
   end;
 
@@ -310,14 +310,14 @@ handle_call({cancel_task, TaskId}, _From, #state{task_filter = Filter} = State) 
       ets:delete(?T_STATS, TaskId),
       case pg_cli:equery("update tasks set status = 'abort' where id = " ++ integer_to_list(TaskId)) of
         {ok, _} -> ok;
-        Other -> ?D({pg_query_failed, Other})
+        Other -> ?E({pg_query_failed, Other})
       end,
       {reply, ok, State#state{task_filter = [TaskId|Filter]}};
     [#current_task{pool = Node, status = progress}] ->
       ets:delete(?T_STATS, TaskId),
       case pg_cli:equery("update tasks set status = 'abort' where id = " ++ integer_to_list(TaskId)) of
         {ok, _} -> ok;
-        Other -> ?D({pg_query_failed, Other})
+        Other -> ?E({pg_query_failed, Other})
       end,
       rpc:cast(Node, fyler_pool, cancel_task, [TaskId]),
       {reply, ok, State};
@@ -409,12 +409,12 @@ handle_info({alarm_too_many_tasks, Type}, State) ->
   {noreply, State};
 
 handle_info({nodedown, Node}, #state{tasks = Tasks} = State) ->
-  ?D({nodedown, Node}),
+  ?E({nodedown, Node}),
   NewTasks = case ets:lookup(?T_POOLS, Node) of 
     [#pool{}] ->
       handle_dead_pool(Node,Tasks);
     _ -> 
-      ?D({unknown_node, Node}),
+      ?E({unknown_node, Node}),
       Tasks
   end,
   {noreply, State#state{tasks = NewTasks}};

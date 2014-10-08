@@ -19,7 +19,7 @@ init(_) ->
   Username = ?Config(pg_user, false),
   Password = ?Config(pg_pass, false),
   Conn = case Database of
-    false -> ?D({no_database}), false;
+    false -> ?E({no_database}), false;
     _ ->
       {ok, Connection} = pgsql:connect(Hostname, Username, Password, [
         {database, Database}

@@ -63,7 +63,11 @@ init(_Args) ->
     _ -> ok
   end,
 
-  {ok, #state{storage_dir = Dir,  category = Category, server_node = Server, max_active = ?Config(max_active,1)}}.
+  MaxActive = ?Config(max_active,1),
+
+  lager:md([{context, {[{category, Category}], {max_active, MaxActive}}}]),
+
+  {ok, #state{storage_dir = Dir,  category = Category, server_node = Server, max_active = MaxActive}}.
 
 
 %% @doc
@@ -153,7 +157,7 @@ handle_call(_Request, _From, State) ->
 
 
 handle_cast({task_failed,Task,Stats},#state{connected = true}=State) ->
-  ?D({task_failed,Task}),
+  ?E({task_failed,Task}),
   fyler_event:task_failed(Task,Stats),
   {noreply,State};
 
@@ -182,7 +186,7 @@ handle_info(connect_to_server, #state{server_node = Node, category = Category, e
                 true ->
                   {fyler_server,Node} ! {pool_connected,node(),Category,Enabled,length(Tasks)},
                   pending;
-                _ -> ?D(server_not_found),
+                _ -> ?E(server_not_found),
                       erlang:send_after(?POLL_SERVER_TIMEOUT,self(),connect_to_server),
                       false
               end,
