@@ -65,7 +65,7 @@ init(_Args) ->
 
   MaxActive = ?Config(max_active,1),
 
-  lager:md([{context, {[{category, Category}], {max_active, MaxActive}}}]),
+  lager:md([{context, {[{category, Category}, {max_active, MaxActive}]}}]),
 
   {ok, #state{storage_dir = Dir,  category = Category, server_node = Server, max_active = MaxActive}}.
 

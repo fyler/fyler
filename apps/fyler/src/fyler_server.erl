@@ -259,7 +259,8 @@ handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_buc
 
       Category = erlang:apply(Handler,category,[]),
 
-      Priority = proplists:get_value(priority, Options, low),
+      Priority_ = proplists:get_value(priority, Options, <<"low">>),
+      Priority = binary_to_atom(Priority_,latin1),
 
       {ok, 1, _, [{Id}]} = pg_cli:equery("insert into tasks (status, file_path, task_type) values ('progress', '" ++ Path ++ "', '" ++ atom_to_list(Handler) ++ "') returning id"),
 

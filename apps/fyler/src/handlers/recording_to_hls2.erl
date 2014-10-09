@@ -17,6 +17,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir} = File, _Opts) ->
   Playlist = Name ++ ".m3u8",
   Options = #{filename => Path, hls_writer => #{dir => Dir, playlist => Playlist}},
   #video_info{audio_codec = Audio, video_codec = Video} = video_probe:info(Path),
+  ?D({<<"convert recording_to_hls2">>,Audio,Video}),
   case convert(Audio, Video, Options, File) of
     {ok, _} ->
       {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Playlist)]}};
@@ -58,15 +59,18 @@ convert("mp3", "", Options = #{hls_writer := HlsWriter}, File) ->
   wait_result(AllOptions, File);
 
 convert(_Audio, "flashsv2", _Options, File) ->
+  ?D(<<"fallback to recording_to_hls: codec flashsv2">>),
   recording_to_hls:run(File, [{stream_type, <<"share">>}]);
 
 convert(_Audio, _Video, _Options, File) ->
+  ?D(<<"fallback to video_to_hls: codec unknown">>),
   video_to_hls:run(File).
 
 
 wait_result(Options, File) ->
   receive
     {task_complete, Options} ->
+      ?D(<<"convert recording_to_hls2: complete!">>),
       ok;
     {task_failed, Reason, Options} ->
       ?E({"media_convert:flv_to_hls failed", Reason}),

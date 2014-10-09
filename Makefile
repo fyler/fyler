@@ -30,6 +30,15 @@ deps_pool_document:
 deps_pool_video:
 	@$(REBAR) get-deps -C rebar_pool_video.config
 
+update_deps_server:
+	@$(REBAR) update-deps -C rebar_server.config
+
+update_deps_pool_document:
+	@$(REBAR) update-deps -C rebar_pool.config
+
+update_deps_pool_video:
+	@$(REBAR) update-deps -C rebar_pool_video.config
+
 compile:
 	@$(REBAR) compile
 
