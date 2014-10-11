@@ -54,6 +54,9 @@ compile_pool_video:
 release: clean compile
 	@$(REBAR) generate force=1
 
+soft-release: clean compile
+	@$(REBAR) generate force=1
+
 test-core:
 	@$(REBAR) skip_deps=true eunit apps=fyler suites=fyler_server,fyler_uploader,aws_cli,fyler_utils,fyler_queue
 
