@@ -54,7 +54,7 @@ compile_pool_video:
 release: clean compile
 	@$(REBAR) generate force=1
 
-soft-release: clean compile
+soft-release:
 	@$(REBAR) generate force=1
 
 test-core:
