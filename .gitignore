@@ -30,6 +30,7 @@ ebin/
 *.dump
 
 # other files
+files/app.config
 apps/fyler/priv/fyler.config
 files/vm.args
 reltool.config
