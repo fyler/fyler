@@ -1,3 +1,9 @@
+## 1.1.0
+* add priority support (customizable through config)
+* add Honeybadger lager backend
+* add 'get' and 'abort' task HTTP calls (as REST read and delete respectively)
+* fix uploader bug 
+
 ## 1.0.0
 * vagrant-ansible [configuration](https://github.com/palkan/fyler-vm)
 * no more HTML/CSS, only JSON
