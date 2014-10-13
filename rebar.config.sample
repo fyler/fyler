@@ -6,7 +6,7 @@
 ]}.
 {require_otp_vsn, "17"}.
 {deps, [
-  {lager, ".*", {git, "git://github.com/basho/lager.git", "master"}},
+  {lager, ".*", {git, "https://github.com/basho/lager.git", "master"}},
   {cowboy, ".*", {git, "https://github.com/extend/cowboy.git", {branch, "master"}}},
   {mimetypes, ".*",{git,"https://github.com/spawngrid/mimetypes.git",{branch,"master"}}},
   {ibrowse, ".*", {git, "https://github.com/cmullaparthi/ibrowse.git"},"master"},
@@ -16,8 +16,8 @@
   {poolboy, ".*", {git, "https://github.com/devinus/poolboy.git",{branch,"master"}}},
   {meck, ".*", {git, "https://github.com/eproxus/meck.git", {tag, "0.8.2"}}},
   {eunit_formatters, ".*", {git, "https://github.com/seancribbs/eunit_formatters.git", {branch, "master"}}},
-  {media, ".*", {git, "git://github.com/fyler/media.git", {branch, "master"}}},
-  {lager_honeybadger_backend, ".*", {git, "git://github.com/fyler/lager_honeybadger_backend.git", {branch, "master"}}}
+  {media, ".*", {git, "https://github.com/fyler/media.git", {branch, "master"}}},
+  {lager_honeybadger_backend, ".*", {git, "https://github.com/fyler/lager_honeybadger_backend.git", {branch, "master"}}}
 ]}.
 {erl_opts, [debug_info, {i, "apps"}, warn_unused_vars, {parse_transform, lager_transform}]}.
 {pre_hooks, [

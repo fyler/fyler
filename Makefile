@@ -13,7 +13,7 @@ else
 endif
 
 
-all: deps compile
+all: deps update_deps compile
 
 update:
 	git pull
@@ -21,35 +21,11 @@ update:
 deps:
 	@$(REBAR) get-deps
 
-deps_server:
-	@$(REBAR) get-deps -C rebar_server.config
-
-deps_pool_document:
-	@$(REBAR) get-deps -C rebar_pool.config
-
-deps_pool_video:
-	@$(REBAR) get-deps -C rebar_pool_video.config
-
-update_deps_server:
-	@$(REBAR) update-deps -C rebar_server.config
-
-update_deps_pool_document:
-	@$(REBAR) update-deps -C rebar_pool.config
-
-update_deps_pool_video:
-	@$(REBAR) update-deps -C rebar_pool_video.config
+update_deps:
+	@$(REBAR) update-deps
 
 compile:
 	@$(REBAR) compile
-
-compile_server:
-	@$(REBAR) compile -C rebar_server.config
-
-compile_pool_document:
-	@$(REBAR) compile -C rebar_pool.config
-
-compile_pool_video:
-	@$(REBAR) compile -C rebar_pool_video.config
 
 release: clean compile
 	@$(REBAR) generate force=1
