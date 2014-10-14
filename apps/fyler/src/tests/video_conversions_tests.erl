@@ -8,7 +8,7 @@
 
 -define(setup(F), {setup, fun setup_/0, fun cleanup_/1, F}).
 
--define(TIMEOUT, 60).
+-define(TIMEOUT, 120).
 
 file_size(Path) ->
   case file:read_file_info(Path) of
@@ -48,9 +48,15 @@ cleanup_(_) ->
   file:delete(?PATH("v1.mp4")),
   file:delete(?PATH("v2_converted.mp4")),
   file:delete(?PATH("v3.mp4")),
+  file:delete(?PATH("v1.webm")),
+  file:delete(?PATH("v2.webm")),
+  file:delete(?PATH("v3.webm")),
   file:delete(?PATH("stream_1.mp4")),
+  file:delete(?PATH("stream_1.webm")),
   file:delete(?PATH("8.mp3")),
   file:delete(?PATH("9_converted.mp3")),
+  file:delete(?PATH("8.ogg")),
+  file:delete(?PATH("9.ogg")),
   case filelib:wildcard("*.ts",?PATH("")) of
     Files when is_list(Files) -> delete_files(Files);
     _ -> false
@@ -72,6 +78,23 @@ video_mp4_test_() ->
       {timeout, ?TIMEOUT, [avi_to_mp4_t_()]},
       {timeout, ?TIMEOUT, [mp4_to_mp4_t_()]},
       {timeout, ?TIMEOUT, [flv_to_mp4_t_()]}
+    ]
+  ).
+
+video_webm_test_() ->
+  ?setup(
+    [
+      {timeout, ?TIMEOUT, [mov_to_webm_t_()]},
+      {timeout, ?TIMEOUT, [avi_to_webm_t_()]},
+      {timeout, ?TIMEOUT, [mp4_to_webm_t_()]},
+      {timeout, ?TIMEOUT, [flv_to_webm_t_()]}
+    ]
+  ).
+
+video_mp4_webm_test_() ->
+  ?setup(
+    [
+      {timeout, ?TIMEOUT, [flv_to_mp4_webm_t_()]}
     ]
   ).
 
@@ -98,6 +121,14 @@ audio_to_mp3_test_() ->
     [
       {timeout, ?TIMEOUT, [wav_to_mp3_t_()]},
       {timeout, ?TIMEOUT, [mp3_to_mp3_t_()]}
+    ]
+  ).
+
+audio_to_ogg_test_() ->
+  ?setup(
+    [
+      {timeout, ?TIMEOUT, [wav_to_ogg_t_()]},
+      {timeout, ?TIMEOUT, [mp3_to_ogg_t_()]}
     ]
   ).
 
@@ -131,6 +162,46 @@ flv_to_mp4_t_() ->
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(3, length(Stat#job_stats.result_path))
+  end.
+
+mov_to_webm_t_() ->
+  fun() ->
+    Res = video_to_webm:run(#file{tmp_path = ?PATH("v1.MOV"), name = "v1", dir = ?PATH("")}),
+    ?assertMatch({ok,#job_stats{}}, Res),
+    {_, Stat} = Res,
+    ?assertEqual(3, length(Stat#job_stats.result_path))
+  end.
+
+avi_to_webm_t_() ->
+  fun() ->
+    Res = video_to_webm:run(#file{tmp_path = ?PATH("v3.avi"), name = "v3", dir = ?PATH("")}),
+    ?assertMatch({ok,#job_stats{}}, Res),
+    {_, Stat} = Res,
+    ?assertEqual(3, length(Stat#job_stats.result_path))
+  end.
+
+mp4_to_webm_t_() ->
+  fun() ->
+    Res = video_to_webm:run(#file{tmp_path = ?PATH("v2.mp4"), name = "v2", dir = ?PATH("")}),
+    ?assertMatch({ok,#job_stats{}}, Res),
+    {_, Stat} = Res,
+    ?assertEqual(3, length(Stat#job_stats.result_path))
+  end.
+
+flv_to_webm_t_() ->
+  fun() ->
+    Res = video_to_webm:run(#file{tmp_path = ?PATH("stream_1.flv"), name = "stream_1", dir = ?PATH("")}),
+    ?assertMatch({ok,#job_stats{}}, Res),
+    {_, Stat} = Res,
+    ?assertEqual(3, length(Stat#job_stats.result_path))
+  end.
+
+flv_to_mp4_webm_t_() ->
+  fun() ->
+    Res = video_to_mp4_webm:run(#file{tmp_path = ?PATH("stream_1.flv"), name = "stream_1", dir = ?PATH("")}),
+    ?assertMatch({ok,#job_stats{}}, Res),
+    {_, Stat} = Res,
+    ?assertEqual(4, length(Stat#job_stats.result_path))
   end.
 
 mov_to_hls_t_() ->
@@ -192,6 +263,22 @@ wav_to_mp3_t_() ->
 mp3_to_mp3_t_() ->
   fun() ->
     Res = audio_to_mp3:run(#file{tmp_path = ?PATH("9.mp3"), name = "9", dir = ?PATH("")}),
+    ?assertMatch({ok,#job_stats{}}, Res),
+    {_, Stat} = Res,
+    ?assertEqual(1, length(Stat#job_stats.result_path))
+  end.
+
+wav_to_ogg_t_() ->
+  fun() ->
+    Res = audio_to_ogg:run(#file{tmp_path = ?PATH("8.wav"), name = "8", dir = ?PATH("")}),
+    ?assertMatch({ok,#job_stats{}}, Res),
+    {_, Stat} = Res,
+    ?assertEqual(1, length(Stat#job_stats.result_path))
+  end.
+
+mp3_to_ogg_t_() ->
+  fun() ->
+    Res = audio_to_ogg:run(#file{tmp_path = ?PATH("9.mp3"), name = "9", dir = ?PATH("")}),
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(1, length(Stat#job_stats.result_path))
