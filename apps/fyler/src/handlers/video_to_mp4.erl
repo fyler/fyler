@@ -36,12 +36,17 @@ run(#file{tmp_path = Path, name = Name, extension=Ext, dir = Dir},Opts) ->
     [] -> {error,Data};
     _List -> 
             Result = NewName++".mp4",
-            case video_thumb:run(#file{tmp_path = MP4, name = Name, dir = Dir},Opts) of
-              {ok,#job_stats{result_path = Thumbs}} ->
-                {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)|Thumbs]}};
-              _Else -> 
-                ?E({video_mp4_failed, _Else}),
-                {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)]}}
+            IsThumb = proplists:get_value(thumb, Opts, true),
+            if IsThumb ->
+              case video_thumb:run(#file{tmp_path = MP4, name = Name, dir = Dir},Opts) of
+                {ok,#job_stats{result_path = Thumbs}} ->
+                  {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)|Thumbs]}};
+                _Else ->
+                  ?E({video_mp4_failed, _Else}),
+                  {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)]}}
+              end;
+            true ->
+              {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)]}}
             end
   end.
 
