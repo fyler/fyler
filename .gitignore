@@ -32,7 +32,6 @@ ebin/
 # other files
 files/app.config
 apps/fyler/priv/fyler.config
-apps/fyler/include/handlers.hrl
 files/vm.args
 reltool.config
 rebar.config
