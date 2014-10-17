@@ -87,7 +87,7 @@ get_task_status(Req, #state{status = Status} = State) ->
 
 
 process_post(Req, State) ->
-  Resp = case cowboy_req:body_qs(Req) of
+  case cowboy_req:body_qs(Req) of
     {ok, X, _} ->
       case validate_post_data(X) of
         [Url, Type, Options] -> 
@@ -95,18 +95,17 @@ process_post(Req, State) ->
           case fyler_server:run_task(Url, Type, Options) of
             {ok, Id} ->
               Resp_ = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req),
-              cowboy_req:set_resp_body(jiffy:encode({[{id, Id}]}), Resp_);
+              {true, cowboy_req:set_resp_body(jiffy:encode({[{id, Id}]}), Resp_), State};
             _ ->
-              cowboy_req:reply(403,Req)
+              {halt, cowboy_req:reply(403,Req), State}
           end;
         false -> ?D(<<"wrong post data">>),
-                  cowboy_req:reply(403,Req)
+          {halt, cowboy_req:reply(403,Req), State}
       end;
     Else -> 
       ?D({<<"no data">>,Else}),
-      cowboy_req:reply(403,Req)
-  end,
-  {true, Resp, State}.
+      {halt, cowboy_req:reply(403,Req), State}
+  end.
 
 delete_resource(Req, #state{id = Id, status = queued} = State) ->
   fyler_server:cancel_task(Id),
