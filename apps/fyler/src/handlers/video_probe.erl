@@ -13,7 +13,13 @@ info(Path) ->
 
   true = filelib:is_file(Path),
 
-  {Info} = jiffy:decode(os:cmd(Command)),
+  Info = 
+    try jiffy:decode(os:cmd(Command)) of
+      {Info_} -> Info_
+    catch
+      Error_ -> ?E(Error_),
+                []
+    end,
 
   Streams = proplists:get_value(<<"streams">>,Info,[]),
 
