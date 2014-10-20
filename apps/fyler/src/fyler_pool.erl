@@ -27,6 +27,7 @@ start_link() ->
 %% gen_server callbacks
 -record(state, {
   enabled = true :: boolean(),
+  busy = false :: boolean(),
   category ::atom(),
   server_node ::atom(),
   connected = false ::false|true|pending,
@@ -127,11 +128,11 @@ handle_call({cancel_task, TaskId}, _From, #state{tasks = Tasks, active_tasks = A
       {reply, ok, State#state{tasks = queue:filter(fun(#task{id = Id}) when Id == TaskId -> false; (_) -> true end, Tasks)}}
   end;
 
-handle_call({enabled, true}, _From, #state{enabled = false, connected = Connected} = State) ->
-  erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task),
-
-  if Connected
-    ->  fyler_event:pool_enabled();
+handle_call({enabled, true}, _From, #state{enabled = false, connected = Connected, busy = Busy} = State) ->
+  if Connected and not Busy
+    ->  
+      erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task),
+      fyler_event:pool_enabled();
     true -> ok
   end,
 
@@ -181,11 +182,11 @@ handle_info(pool_accepted,#state{finished_tasks = Finished} = State) ->
   {noreply,State#state{connected = true, finished_tasks = []}};
 
 
-handle_info(connect_to_server, #state{server_node = Node, category = Category, enabled = Enabled,active_tasks = Tasks} = State) ->
+handle_info(connect_to_server, #state{server_node = Node, category = Category, enabled = Enabled,active_tasks = Tasks, busy = Busy} = State) ->
   ?D({connecting_to_node, Node}),
   Connected = case net_kernel:connect_node(Node) of
                 true ->
-                  {fyler_server,Node} ! {pool_connected,node(),Category,Enabled,length(Tasks)},
+                  {fyler_server,Node} ! {pool_connected,node(),Category,(Enabled and not Busy),length(Tasks)},
                   pending;
                 _ -> ?E(server_not_found),
                       erlang:send_after(?POLL_SERVER_TIMEOUT,self(),connect_to_server),
@@ -217,19 +218,39 @@ handle_info(next_task, #state{tasks = Tasks, active_tasks = Active, storage_dir 
 handle_info(try_next_task, #state{enabled = false} = State) ->
   {noreply, State};
 
-handle_info(try_next_task, #state{max_active = Max, active_tasks = Active} = State) when Max =< length(Active) ->
+handle_info(try_next_task, #state{max_active = Max, active_tasks = Active, connected = Connected, busy = Busy} = State) when Max =< length(Active) ->
   ?D({pool_is_busy}),
-  erlang:send_after(?POOL_BUSY_TIMEOUT, self(), try_next_task),
-  {noreply, State};
-
-handle_info(try_next_task, #state{tasks = Tasks} = State) ->
-  Empty = queue:is_empty(Tasks),
-  if Empty
-    -> ok;
-    true -> self() ! next_task,
-      erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task)
+  if Connected and not Busy
+    ->
+      fyler_event:pool_disabled();
+    true -> ok
   end,
-  {noreply, State};
+
+  if not Busy
+    ->
+      erlang:send_after(?POOL_BUSY_TIMEOUT, self(), try_next_task);
+    true -> ok
+  end,
+
+  {noreply, State#state{busy = true}};
+
+handle_info(try_next_task, #state{tasks = Tasks, connected = Connected, busy = Busy} = State) ->
+  Empty = queue:is_empty(Tasks),
+  NewBusy =
+    if Empty
+      -> 
+        if Connected and Busy
+          -> 
+            fyler_event:pool_enabled(),
+            false;
+          true -> Busy
+        end;
+      true -> 
+        self() ! next_task,
+        erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task),
+        Busy
+    end,
+  {noreply, State#state{busy = NewBusy}};
 
 
 handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, active_tasks = Active, pids = Pids} = State) ->
@@ -353,7 +374,8 @@ max_active_t_(_) ->
   fyler_pool:run_task(?task(3)),
   [
     ?_assertEqual(1, length(gen_server:call(fyler_pool,{state, #state.active_tasks}))),
-    ?_assertEqual(2, queue:len(gen_server:call(fyler_pool,{state, #state.tasks})))
+    ?_assertEqual(2, queue:len(gen_server:call(fyler_pool,{state, #state.tasks}))),
+    ?_assertEqual(true, gen_server:call(fyler_pool,{state, #state.busy}))
   ].
 
 max_active_enabled_t_(_) ->

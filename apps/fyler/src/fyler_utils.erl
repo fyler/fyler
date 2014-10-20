@@ -1,5 +1,6 @@
 -module(fyler_utils).
 -include("fyler.hrl").
+-include("../include/log.hrl").
 
 %% API
 -export([
@@ -135,7 +136,9 @@ from_json(Any) ->
   try jiffy:decode(Any) of
     {Data} -> [{binary_to_atom(Opt,latin1),proplists:get_value(Opt, Data)} || Opt <- proplists:get_keys(Data)]
   catch
-    _ -> []
+    _Error -> 
+      ?E({json_failed, Any, _Error}),
+      []
   end.
 
 pad(N) when N < 10 -> "0"++integer_to_list(N);
@@ -167,7 +170,7 @@ error_to_s(null) ->
   <<"">>;
 
 error_to_s(_) ->
-  "Error".
+  <<"Error">>.
 
 
 
