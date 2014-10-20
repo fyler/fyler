@@ -93,8 +93,5 @@ pixel_format(_) ->
 video_size(Size,_,true) when Size < 800 ->
   " -vf \"scale=trunc(in_w/2)*2:trunc(in_h/2)*2\" ";
 
-video_size(Size,_,_) when Size > 1000->
-  " -video_size hd1080 ";
-
 video_size(_,_,_) ->
   "".
