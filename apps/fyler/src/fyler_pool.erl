@@ -266,6 +266,8 @@ handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, acti
     true -> ok
   end,
 
+  ?D({length(NewActive),Max,Busy}),
+
   NewBusy = 
     if length(NewActive)<Max and Busy
       -> 
