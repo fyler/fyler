@@ -269,7 +269,7 @@ handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, acti
   ?D({length(NewActive),Max,Busy}),
 
   NewBusy = 
-    if length(NewActive)<Max and Busy
+    if (length(NewActive)<Max) and Busy
       -> 
         fyler_event:pool_enabled(),
         false;
@@ -292,7 +292,7 @@ handle_info({'DOWN', Ref, process, _Pid, killed}, #state{enabled = Enabled, acti
   end,
 
   NewBusy = 
-    if length(NewActive)<Max and Busy
+    if (length(NewActive)<Max) and Busy
       -> 
         fyler_event:pool_enabled(),
         false;
@@ -316,7 +316,7 @@ handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, activ
   end,
 
   NewBusy = 
-    if length(NewActive)<Max and Busy
+    if (length(NewActive)<Max) and Busy
       -> 
         fyler_event:pool_enabled(),
         false;

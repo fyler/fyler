@@ -310,7 +310,7 @@ handle_call(_Request, _From, State) ->
 
 
 handle_cast({pool_enabled, Node, Enabled}, State) ->
-  ?D({pool_enabled, Node}),
+  ?D({pool_enabled, Enabled, Node}),
   case ets:lookup(?T_POOLS,Node) of
     [#pool{category = Category} = Pool] ->
       if Enabled 
