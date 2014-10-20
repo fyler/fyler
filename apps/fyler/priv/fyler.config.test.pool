@@ -1,0 +1,8 @@
+{role, pool}.
+{category, test}.
+{server_name, 'fyler@127.0.0.1'}.
+{storage_dir,"./tmp"}.
+{aws_s3_bucket, ["test"]}.
+{aws_dir,"ff/"}.
+{auth_pass,"098f6bcd4621d373cade4e832627b4f6"}. 
+{auth_login,"test"}.

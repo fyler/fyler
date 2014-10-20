@@ -1,13 +1,13 @@
-%%% @doc Do nothing with file; just print file stat with 2 seconds delay (use for debug only).
+%%% @doc Failing task
 %%% @end
 
--module(do_nothing).
+-module(do_fail).
 -include("../fyler.hrl").
 -include("../../include/log.hrl").
 
 -export([run/2, run/1, category/0]).
 
--define(COMMAND(In), os:cmd("sleep 2 && stat " ++ In)).
+-define(COMMAND(In), os:cmd("sleep 1")).
 
 category() ->
   test.
@@ -15,9 +15,10 @@ category() ->
 run(X) ->
   run(X,[]).
 
-run(#file{tmp_path = Path},_Opts) ->
+run(_,_Opts) ->
   Start = ulitos:timestamp(),
   ?D(?COMMAND(Path)),
+  jiffy:decode("{\"copyright\":\"© 2008 Microsoft Corporation\"}"), % this cause an error
   {ok,#job_stats{time_spent = ulitos:timestamp() - Start}}.
 
 

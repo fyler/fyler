@@ -128,7 +128,6 @@ handle_call({cancel_task, TaskId}, _From, #state{tasks = Tasks, active_tasks = A
   end;
 
 handle_call({enabled, true}, _From, #state{enabled = false, connected = Connected} = State) ->
-  self() ! next_task,
   erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task),
 
   if Connected
@@ -150,6 +149,8 @@ handle_call({enabled, false}, _From, #state{enabled = true,connected = Connected
 handle_call({enabled, true}, _From, #state{enabled = true} = State) -> {reply, false, State};
 handle_call({enabled, false}, _From, #state{enabled = false} = State) -> {reply, false, State};
 
+handle_call({state, N}, _From, State) ->
+  {reply,element(N,State),State};
 
 handle_call(_Request, _From, State) ->
   ?D(_Request),
@@ -232,6 +233,7 @@ handle_info(try_next_task, #state{tasks = Tasks} = State) ->
 
 
 handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, active_tasks = Active, pids = Pids} = State) ->
+  ?D({down_normal}),
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
                 #task{} = Task ->
                   cleanup_task_files(Task),
@@ -245,6 +247,7 @@ handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, acti
   {noreply, State#state{active_tasks = NewActive, pids = maps:remove(Ref, Pids)}};
 
 handle_info({'DOWN', Ref, process, _Pid, killed}, #state{enabled = Enabled, active_tasks = Active, pids = Pids} = State) ->
+  ?D({down_killed}),
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
                 #task{} = Task ->
                   cleanup_task_files(Task),
@@ -258,6 +261,7 @@ handle_info({'DOWN', Ref, process, _Pid, killed}, #state{enabled = Enabled, acti
   {noreply, State#state{active_tasks = NewActive, pids = maps:remove(Ref, Pids)}};
 
 handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, active_tasks = Active, pids = Pids} = State) ->
+  ?D({donw, Other}),
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
                 #task{} = Task -> 
                   cleanup_task_files(Task),
@@ -299,3 +303,85 @@ code_change(_OldVsn, State, _Extra) ->
 cleanup_task_files(#task{file = #file{dir = Dir}})->
   ?D({cleanup, Dir}),
   ulitos_file:recursively_del_dir(Dir).
+
+
+-ifdef(TEST).
+
+-include_lib("eunit/include/eunit.hrl").
+
+-define(setup(F), {setup, fun setup_/0, fun cleanup_/1, F}).
+
+-define(task(Id), #task{id=Id, file=#file{tmp_path = "file", dir = "test"++integer_to_list(Id), is_aws = true, url ="https://test.s3.amazonaws.com/test.smth"}, type=do_nothing, category=test}).
+-define(failed_task(Id), #task{id=Id, file=#file{tmp_path = "file", dir = "fail_test"++integer_to_list(Id), is_aws = true, url ="https://test.s3.amazonaws.com/test.smth"}, type=do_fail, category=test}).
+
+
+setup_() ->
+  lager:start(),
+  application:set_env(fyler,config,"fyler.config.test.pool"),
+  application:set_env(fyler,max_active,1),
+  meck:new(aws_cli,[non_strict]),
+  meck:expect(aws_cli, copy_folder, fun(_,_) -> timer:sleep(2000) end),
+  meck:expect(aws_cli, copy_object, fun(_,_) -> timer:sleep(2000) end),
+  meck:expect(aws_cli, dir_exists, fun(_) -> true end),
+  filelib:ensure_dir("./tmp"),
+  file:make_dir("./tmp"),
+  file:write_file("./tmp/file", <<"0">>),
+  fyler:start().
+
+cleanup_(_) ->
+  meck:unload(aws_cli),
+  application:stop(lager),
+  fyler:stop().
+
+max_active_test_() ->
+  [
+    {"should have only one active task",
+    ?setup(
+      fun max_active_t_/1
+      )
+    },
+    {"should not start new task after enabled if max active reached",
+    ?setup(
+      fun max_active_enabled_t_/1
+      )
+    }
+  ].
+
+max_active_t_(_) ->
+  fyler_pool:run_task(?task(1)),
+  fyler_pool:run_task(?task(2)),
+  fyler_pool:run_task(?task(3)),
+  [
+    ?_assertEqual(1, length(gen_server:call(fyler_pool,{state, #state.active_tasks}))),
+    ?_assertEqual(2, queue:len(gen_server:call(fyler_pool,{state, #state.tasks})))
+  ].
+
+max_active_enabled_t_(_) ->
+  fyler_pool:run_task(?task(1)),
+  gen_server:call(fyler_pool, {enabled,false}),
+  fyler_pool:run_task(?task(2)),
+  fyler_pool:run_task(?task(3)),
+  gen_server:call(fyler_pool, {enabled,true}),
+  [
+    ?_assertEqual(1, length(gen_server:call(fyler_pool,{state, #state.active_tasks}))),
+    ?_assertEqual(2, queue:len(gen_server:call(fyler_pool,{state, #state.tasks})))
+  ].
+
+failing_task_test_() ->
+  [
+    {"should handle worker 'DOWN' on system error",
+    ?setup(
+      fun system_fail_t_/1
+      )
+    }
+  ].
+
+system_fail_t_(_) ->
+  fyler_pool:run_task(?failed_task(1)),
+  timer:sleep(5000),
+  [
+    ?_assertEqual(0, length(gen_server:call(fyler_pool,{state, #state.active_tasks}))),
+    ?_assertEqual(0, queue:len(gen_server:call(fyler_pool,{state, #state.tasks})))
+  ].
+
+-endif.

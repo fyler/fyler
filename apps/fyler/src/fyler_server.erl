@@ -84,6 +84,9 @@ init(_Args) ->
 
   ?I({server_start, AwsDir, Buckets}),
 
+  %% check db for task in progress and restart them
+  self() ! check_pending_tasks,
+
   {ok, #state{cowboy_pid = Http, aws_bucket = Buckets, aws_dir = AwsDir, priorities = Priorities}}.
 
 
@@ -173,9 +176,11 @@ tasks_stats(Params) ->
     true -> ""
   end,
 
-  Values = case pg_cli:equery("select * from tasks "++Query++"order by "++OrderBy++" "++Order++" offset "++Offset++" limit "++Limit) of
+  SQL = "select * from tasks "++Query++"order by "++OrderBy++" "++Order++" offset "++Offset++" limit "++Limit,
+
+  Values = case pg_cli:equery(SQL) of
              {ok, _, List} -> List;
-             Other -> ?E({pg_query_failed, Other})
+             Other -> ?E({pg_query_failed, SQL, Other})
            end,
   [fyler_utils:stats_to_proplist(fyler_utils:task_record_to_proplist(V)) || V <- Values].
 
@@ -237,51 +242,23 @@ task_status(TaskId) ->
 cancel_task(Id) ->
   gen_server:call(fyler_server, {cancel_task, Id}).
 
-handle_call({run_task, URL, Type, Options}, _From, #state{tasks = Tasks, aws_bucket = Buckets, aws_dir = AwsDir, tasks_count = TCount, priorities = Priorities} = State) ->
-  case parse_url(URL, Buckets) of
-    {true, Bucket, Path, Name, Ext} ->
-      %% generate temp uniq name
-      UniqueDir = uniqueId() ++ "_" ++ Name,
-      TmpName = filename:join(UniqueDir, Name ++ "." ++ Ext),
 
-      ?D(Options),
-
-      Callback = proplists:get_value(callback, Options, undefined),
-      TargetDir = case proplists:get_value(target_dir, Options) of
-                    undefined -> filename:join(AwsDir,UniqueDir);
-                    TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Bucket) of
-                                    {true, TargetPath} -> TargetPath;
-                                    _ -> ?E({wrong_target_dir, TargetDir_}), filename:join(AwsDir,UniqueDir)
-                                  end
-                  end,
-
-      Handler = list_to_atom(Type),
-
-      Category = erlang:apply(Handler,category,[]),
-
-      Priority_ = proplists:get_value(priority, Options, <<"low">>),
-      Priority = binary_to_atom(Priority_,latin1),
-
-      {ok, 1, _, [{Id}]} = pg_cli:equery("insert into tasks (status, file_path, task_type) values ('progress', '" ++ Path ++ "', '" ++ atom_to_list(Handler) ++ "') returning id"),
-
-      Task = #task{id = Id, type = Handler, category = Category, options = Options, callback = Callback, priority = get_priority(Priorities, Category, Priority), file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = true, url = Path, name = Name, dir = UniqueDir, tmp_path = TmpName}},
+handle_call({run_task, URL, Type, Options}, _From, State) ->
+  case build_task(URL, Type, Options, false, State) of
+    {{ok,Id,Category}, #state{tasks = Tasks} = NewState} ->
       
-      NewTasks = add_task(Task, Tasks),
-
-      Len = fyler_queue:len(maps:get(Category,NewTasks)),
+      Len = fyler_queue:len(maps:get(Category,Tasks)),
 
       if Len > ?QUEUE_LENGTH_WM
         -> self() ! {alarm_too_many_tasks, Category};
         true -> ok
       end,
 
-      ets:insert(?T_STATS, #current_task{id = Id, type = list_to_atom(Type), url = Path, status = queued}),
-
       self() ! {try_next_task, Category},
 
-      {reply, {ok, Id}, State#state{tasks = NewTasks, tasks_count = TCount + 1}};
-    _ -> ?E({bad_url, URL, Buckets}),
-      {reply, false, State}
+      {reply, {ok, Id}, NewState};
+    _ ->
+        {reply, false, State}
   end;
 
 handle_call(tasks,_From,#state{tasks = Tasks}=State) ->
@@ -420,6 +397,21 @@ handle_info({nodedown, Node}, #state{tasks = Tasks} = State) ->
   end,
   {noreply, State#state{tasks = NewTasks}};
 
+
+handle_info(check_pending_tasks, State) ->
+  Query = "select * from tasks where status='progress' order by id ASC",
+  Values = case pg_cli:equery(Query) of
+             {ok, _, List} -> List;
+             {ok, _,_,_} -> []; %% mocked in test
+             Other -> ?E({pg_query_failed, Query, Other}),
+                      []
+           end,
+  Tasks = [fyler_utils:task_record_to_task(V) || V <- Values],
+  #state{tasks = NewTasks} = NewState = rebuild_tasks(Tasks,State),
+  [self() ! {try_next_task, Category} || Category <- maps:keys(NewTasks)],
+  {noreply, NewState};
+
+
 handle_info(Info, State) ->
   ?D(Info),
   {noreply, State}.
@@ -439,7 +431,7 @@ handle_dead_pool(Node,Tasks) ->
       Tasks;
     Tasks_ -> 
       ?I({"Pool died with active tasks; restarting...",Node}),
-      Tasks2 = restart_tasks(Tasks_, Tasks),
+      Tasks2 = restart_tasks([Task_ || #current_task{task=Task_} <- Tasks_], Tasks),
       [self() ! {try_next_task, Category} || Category <- maps:keys(Tasks2)],
       Tasks2
   end.
@@ -512,6 +504,57 @@ remove_timer(Type,Timers) ->
               maps:remove(Type,Timers)
   end.
 
+
+build_task(URL, Type, Options, OldId, #state{tasks = Tasks, aws_bucket = Buckets, aws_dir = AwsDir, tasks_count = TCount, priorities = Priorities} = State) ->
+  case parse_url(URL, Buckets) of
+    {true, Bucket, Path, Name, Ext} ->
+      %% generate temp uniq name
+      UniqueDir = uniqueId() ++ "_" ++ Name,
+      TmpName = filename:join(UniqueDir, Name ++ "." ++ Ext),
+
+      ?D(Options),
+
+      Callback = proplists:get_value(callback, Options, undefined),
+      TargetDir = 
+        case proplists:get_value(target_dir, Options) of
+          undefined -> filename:join(AwsDir,UniqueDir);
+          TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Bucket) of
+                          {true, TargetPath} -> TargetPath;
+                          _ -> ?E({wrong_target_dir, TargetDir_}), filename:join(AwsDir,UniqueDir)
+                        end
+        end,
+
+      Handler = list_to_atom(Type),
+
+      Category = erlang:apply(Handler,category,[]),
+
+      Priority_ = proplists:get_value(priority, Options, <<"low">>),
+      Priority = binary_to_atom(Priority_,latin1),
+
+      Id = 
+        case OldId of
+          false ->
+            {ok, 1, _, [{Id_}]} = pg_cli:equery("insert into tasks (status, file_path, task_type, url, options, priority) values ('progress', '" ++ Path ++ "', '" ++ atom_to_list(Handler) ++ "', '"++URL++"', '"++binary_to_list(fyler_utils:to_json(Options))++"', '"++atom_to_list(Priority)++"') returning id"),
+            Id_;
+          _ -> OldId
+        end,
+
+      Task = #task{id = Id, type = Handler, category = Category, options = Options, callback = Callback, priority = get_priority(Priorities, Category, Priority), file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = true, url = Path, name = Name, dir = UniqueDir, tmp_path = TmpName}},
+      NewTasks = add_task(Task, Tasks),
+      ets:insert(?T_STATS, #current_task{id = Id, type = list_to_atom(Type), url = Path, status = queued}),
+    {{ok, Id, Category}, State#state{tasks = NewTasks, tasks_count = TCount + 1}};
+    _ -> 
+      %% change status if taks was from db
+      case OldId of
+        false -> ok;
+        _ ->
+          pg_cli:equery("update tasks set status = 'failed', error_msg = 'bad_url' where id = " ++ integer_to_list(OldId))
+      end,
+      ?E({bad_url, URL, Buckets}),
+      {false, State}
+  end.
+
+
 %% @doc
 %% Add task to category queue
 %% @end
@@ -525,14 +568,26 @@ add_task(#task{category = Cat, priority = Priority} = Task, Tasks) ->
   end.
 
 %% @doc
-%% Add tasks to the queue again.
+%% Rebuild tasks from db (after server is down).
 %% @end
 
--spec restart_tasks(list(#current_task{}), map()) -> map().
+rebuild_tasks([], State) -> ?I("All tasks rebuilt."), State;
+
+rebuild_tasks([{Url, Type, Options, Id}=Task|T], State) ->
+  ?D({rebuilding_task, Task}),
+  {_, NewState} = build_task(Url, Type, Options, Id, State),
+  rebuild_tasks(T, NewState).
+
+
+%% @doc
+%% Add tasks to the queue again (after pool is down).
+%% @end
+
+-spec restart_tasks(list(#task{}), map()) -> map().
 
 restart_tasks([], Tasks) -> ?I("All tasks restarted."), Tasks;
 
-restart_tasks([#current_task{task = Task}|T], Old) ->
+restart_tasks([Task|T], Old) ->
   ?D({restarting_task, Task}),
   restart_tasks(T, add_task(Task,Old)).
 
@@ -639,6 +694,7 @@ out_with_filter(Tasks, Filter) ->
 -include_lib("eunit/include/eunit.hrl").
 
 -define(setup(F), {setup, fun setup_/0, fun cleanup_/1, F}).
+-define(setup2(F), {setup, fun setup2_/0, fun cleanup_/1, F}).
 
 path_to_test() ->
   ?assertEqual({false, false, "http://qwe/data.ext", "data", "ext"}, parse_url("http://qwe/data.ext", [])),
@@ -659,9 +715,9 @@ dir_url_test() ->
 
 restart_task_test() ->
   Tasks = [
-    #current_task{task = #task{id=1, category = test}},
-    #current_task{task = #task{id=2, category = video}},
-    #current_task{task = #task{id=3, category = docs}}
+    #task{id=1, category = test},
+    #task{id=2, category = video},
+    #task{id=3, category = docs}
   ],
   NewTasks = restart_tasks(Tasks, #{docs => fyler_queue:in(#task{id=5, category = docs}, fyler_queue:new())}),
   ?assertEqual(1, fyler_queue:len(maps:get(test,NewTasks))),
@@ -678,9 +734,17 @@ setup_() ->
   lager:start(),
   application:set_env(fyler,config,"fyler.config.test"),
   ulitos_app:set_var(fyler, aws_s3_bucket, ["test"]),
-  fyler:start(),
   meck:new(pg_cli, [passthrough]),
-  meck:expect(pg_cli, equery, fun(_) -> {ok, 1, 1, [{1}]} end).
+  meck:expect(pg_cli, equery, fun(_) -> {ok, 1, 1, [{1}]} end),
+  fyler:start().
+
+setup2_() ->
+  lager:start(),
+  application:set_env(fyler,config,"fyler.config.test"),
+  ulitos_app:set_var(fyler, aws_s3_bucket, ["test"]),
+  meck:new(pg_cli, [passthrough]),
+  meck:expect(pg_cli, equery, fun(_) -> {ok, 1, [{1,<<"progress">>,1,1,1,<<"">>,1,<<"">>,<<"do_nothing">>,<<"">>,{{2013,10,24},{12,0,0.3}}, <<"https://test.s3.amazonaws.com/test.smth">>, <<"{\"callback\":\"http://callback\"}">>, <<"low">>}]} end),
+  fyler:start().
 
 cleanup_(_) ->
   meck:unload(pg_cli),
@@ -811,6 +875,12 @@ tasks_test_() ->
       )
     },
     {
+      "rebuild tasks",
+      ?setup2(
+        fun rebuild_tasks_t_/1
+      )
+    },
+    {
       "task params",
       ?setup(
         fun task_params_t_/1
@@ -844,6 +914,15 @@ task_params_t_(_) ->
   [
     ?_assertMatch(#file{target_dir= "record/stream/", bucket="test", extension="flv", name="stream", url="test/record/stream.flv"},File),
     ?_assertEqual(video, Category),
+    ?_assertEqual(<<"http://callback">>, Callback)
+  ].
+
+rebuild_tasks_t_(_) ->
+  Tasks = gen_server:call(fyler_server, tasks),
+  {{value,#task{file=File, category=Category, callback=Callback}},_} = fyler_queue:out(maps:get(test,Tasks)),
+  [
+    ?_assertMatch(#file{bucket="test", name="test"},File),
+    ?_assertEqual(test, Category),
     ?_assertEqual(<<"http://callback">>, Callback)
   ].
 

@@ -59,7 +59,10 @@
   result_path = [] ::string(),
   task_type = do_nothing ::atom(),
   error_msg = "" ::string(),
-  ts = 0 ::non_neg_integer()
+  ts = 0 ::non_neg_integer(),
+  url = []::string(),
+  options,
+  priority = "" ::string()
 }).
 
 -type stats() ::#job_stats{}.
