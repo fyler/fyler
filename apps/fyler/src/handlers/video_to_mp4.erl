@@ -82,7 +82,7 @@ video_codec("h264","") ->
   " -c:v copy ";
 
 video_codec(_,_) ->
-  " -vcodec libx264 -profile:v baseline -preset slower -crf 18 ".
+  " -vcodec libx264 -profile:v baseline -preset fast -crf 18 ".
 
 pixel_format("yuv420p") ->
   "";
