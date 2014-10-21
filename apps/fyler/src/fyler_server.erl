@@ -458,7 +458,7 @@ send_response(#task{callback = Callback}, _, failed) ->
 start_http_server() ->
   Dispatch = cowboy_router:compile([
     {'_', [
-      {"/", index_handler, []},
+      {"/", stats_handler, []},
       {"/stats", stats_handler, []},
       {"/tasks", tasks_handler, []},
       {"/pools", pools_handler, []},
