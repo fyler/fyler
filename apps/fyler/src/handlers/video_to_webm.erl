@@ -48,7 +48,11 @@ run(#file{tmp_path = Path, name = Name, extension=Ext, dir = Dir},Opts) ->
 
 info_to_params(#video_info{audio_codec = Audio, video_codec = Video, video_size = Size, pixel_format = Pix, video_bad_size=BadSize}=_Info) ->
   Format = pixel_format(Pix),
-  VCodec = video_codec(Video,Format),
+  VCodec =
+    if
+      BadSize -> video_codec(default, Format);
+      true -> video_codec(Video, Format)
+    end,
   Copy = VCodec =:= " -c:v copy ",
   VCodec ++ Format ++ video_size(Size,Copy,BadSize) ++ audio_codec(Audio).
 
@@ -74,7 +78,7 @@ video_codec("vp8","") ->
   " -c:v copy ";
 
 video_codec(_,_) ->
-  " -c:v libvpx -crf 18 ".
+  " -c:v libvpx -quality good -cpu-used 1 -qmin 10 -qmax 42 -threads 4 ".
 
 pixel_format("yuv420p") ->
   "";
@@ -82,7 +86,7 @@ pixel_format("yuv420p") ->
 pixel_format(_) ->
   " -pix_fmt yuv420p ".
 
-video_size(Size,_,true) when Size < 800 ->
+video_size(_,_,true) ->
   " -vf \"scale=trunc(in_w/2)*2:trunc(in_h/2)*2\" ";
 
 video_size(_,_,_) ->

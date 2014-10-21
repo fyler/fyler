@@ -136,7 +136,7 @@ from_json(Any) ->
   try jiffy:decode(Any) of
     {Data} -> [{binary_to_atom(Opt,latin1),proplists:get_value(Opt, Data)} || Opt <- proplists:get_keys(Data)]
   catch
-    _Error -> 
+    _:_Error ->
       ?E({json_failed, Any, _Error}),
       []
   end.
