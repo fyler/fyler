@@ -15,7 +15,9 @@
   ]).
 
 
-stats_to_proplist(#job_stats{status=Status,
+stats_to_proplist(#job_stats{
+  id = Id,
+  status=Status,
   download_time = DTime,
   upload_time = UTime,
   url = Url,
@@ -24,18 +26,22 @@ stats_to_proplist(#job_stats{status=Status,
   file_path = Path,
   time_spent = Time,
   error_msg = Error,
-  task_type = Type}) ->
+  task_type = Type,
+  ts = Ts}) ->
   {[
-  {status, Status}, 
-  {download_time, DTime},
-  {upload_time, UTime},
-  {url, Url},
-  {priority, Priority},
-  {file_size, Size},
-  {file_path, Path},
-  {time_spent, Time},
-  {task_type, Type},
-  {error, error_to_s(Error)}]}.
+    {id, Id},
+    {status, Status},
+    {download_time, DTime},
+    {upload_time, UTime},
+    {url, Url},
+    {priority, Priority},
+    {file_size, Size},
+    {file_path, Path},
+    {time_spent, Time},
+    {task_type, Type},
+    {time_start, Ts},
+    {error, error_to_s(Error)}
+  ]}.
 
 
 current_task_to_proplist(#current_task{id=Id, status=Status, url=Url, type = Type, pool = Pool}) ->

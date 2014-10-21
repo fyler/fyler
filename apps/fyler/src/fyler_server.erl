@@ -179,8 +179,11 @@ tasks_stats(Params) ->
   SQL = "select * from tasks "++Query++"order by "++OrderBy++" "++Order++" offset "++Offset++" limit "++Limit,
 
   Values = case pg_cli:equery(SQL) of
-             {ok, _, List} -> List;
-             Other -> ?E({pg_query_failed, SQL, Other})
+             {ok, _, List} ->
+               List;
+             Other ->
+               ?E({pg_query_failed, SQL, Other}),
+               []
            end,
   [fyler_utils:stats_to_proplist(fyler_utils:task_record_to_proplist(V)) || V <- Values].
 
