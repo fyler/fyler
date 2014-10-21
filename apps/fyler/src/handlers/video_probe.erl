@@ -13,24 +13,21 @@ info(Path) ->
 
   true = filelib:is_file(Path),
 
-  Info = 
-    try jiffy:decode(os:cmd(Command)) of
-      {Info_} -> Info_
-    catch
-      Error_ -> ?E(Error_),
-                []
-    end,
-
-  Streams = proplists:get_value(<<"streams">>,Info,[]),
-
-  if length(Streams)>0
-    ->
-      VideoInfo = parse_info(Streams,#video_info{}),
-      ?D({video_info,VideoInfo}),
-      VideoInfo;
-    true ->
-      ?E({file_is_not_video, Path}),
-      false
+  try jiffy:decode(os:cmd(Command)) of
+    {Info} ->
+      Streams = proplists:get_value(<<"streams">>,Info,[]),
+      if
+        length(Streams)>0 ->
+          VideoInfo = parse_info(Streams, #video_info{}),
+          ?D({video_info, VideoInfo}),
+          VideoInfo;
+        true ->
+          ?E({file_is_not_video, Path}),
+          false
+      end
+  catch
+    _:Error_ -> ?E(Error_),
+              #video_info{audio_codec = default, video_codec = default}
   end.
 
 parse_info([],Info) -> Info;
