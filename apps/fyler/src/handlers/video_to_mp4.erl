@@ -82,7 +82,7 @@ video_codec("h264","") ->
   " -c:v copy ";
 
 video_codec(_,_) ->
-  " -vcodec libx264 -profile:v baseline -preset slower -crf 18 ".
+  " -vcodec libx264 -profile:v baseline -preset fast -crf 18 ".
 
 pixel_format("yuv420p") ->
   "";
@@ -92,9 +92,6 @@ pixel_format(_) ->
 
 video_size(Size,_,true) when Size < 800 ->
   " -vf \"scale=trunc(in_w/2)*2:trunc(in_h/2)*2\" ";
-
-video_size(Size,_,_) when Size > 1000->
-  " -video_size hd1080 ";
 
 video_size(_,_,_) ->
   "".

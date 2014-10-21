@@ -1,20 +1,25 @@
 -module(fyler_utils).
 -include("fyler.hrl").
+-include("../include/log.hrl").
 
 %% API
 -export([
   task_record_to_proplist/1, 
+  task_record_to_task/1, 
   stats_to_pg_string/1,
   stats_to_pg_update_string/1,
   stats_to_proplist/1,
   current_task_to_proplist/1,
-  pool_to_proplist/1
+  pool_to_proplist/1,
+  to_json/1
   ]).
 
 
 stats_to_proplist(#job_stats{status=Status,
   download_time = DTime,
   upload_time = UTime,
+  url = Url,
+  priority = Priority,
   file_size = Size,
   file_path = Path,
   time_spent = Time,
@@ -24,6 +29,8 @@ stats_to_proplist(#job_stats{status=Status,
   {status, Status}, 
   {download_time, DTime},
   {upload_time, UTime},
+  {url, Url},
+  {priority, Priority},
   {file_size, Size},
   {file_path, Path},
   {time_spent, Time},
@@ -35,7 +42,7 @@ current_task_to_proplist(#current_task{id=Id, status=Status, url=Url, type = Typ
   {[
     {id, Id},
     {status, Status},
-    {url, Url},
+    {url, list_to_binary(Url)},
     {type, Type},
     {pool,Pool}
   ]}.
@@ -56,6 +63,16 @@ task_record_to_proplist(Record) ->
   Stats2.
 
 %% @doc
+%% Convert tuple of values from PG to task tuple ({url, type, options, id})
+%% @end
+
+-spec task_record_to_task(term()) -> list().
+
+task_record_to_task(Record) ->
+  #job_stats{url = Url, id = Id, options = Options, task_type = Type} = list_to_tuple([job_stats|tuple_to_list(Record)]),
+  {to_list(Url), to_list(Type), from_json(Options), Id}.
+
+%% @doc
 %% Convert stats record values to pg values string
 %% @end
 
@@ -73,7 +90,7 @@ stats_to_pg_string(#job_stats{status=Status,
 
   ResultsList = string:join([binary_to_list(R) || R<-Results],","),
 
-  "'"++atom_to_list(Status)++"',"++integer_to_list(to_int(DTime))++","++integer_to_list(to_int(UTime))++","++integer_to_list(to_int(Size))++",'"++Path++"',"++integer_to_list(to_int(Time))++",'"++ResultsList++"','"++atom_to_list(Type)++"','"++error_to_s(Error)++"'".
+  "'"++atom_to_list(Status)++"',"++integer_to_list(to_int(DTime))++","++integer_to_list(to_int(UTime))++","++integer_to_list(to_int(Size))++",'"++Path++"',"++integer_to_list(to_int(Time))++",'"++ResultsList++"','"++atom_to_list(Type)++"','"++binary_to_list(error_to_s(Error))++"'".
 
 stats_to_pg_update_string(#job_stats{status=Status,
   download_time = DTime,
@@ -85,7 +102,7 @@ stats_to_pg_update_string(#job_stats{status=Status,
 
   ResultsList = string:join([binary_to_list(R) || R<-Results],","),
 
-  "status = '"++atom_to_list(Status)++"', download_time = "++integer_to_list(to_int(DTime))++", upload_time = "++integer_to_list(to_int(UTime))++", file_size = "++integer_to_list(to_int(Size))++", time_spent = "++integer_to_list(to_int(Time))++", result_path = '"++ResultsList++"', error_msg = '"++error_to_s(Error)++"'".
+  "status = '"++atom_to_list(Status)++"', download_time = "++integer_to_list(to_int(DTime))++", upload_time = "++integer_to_list(to_int(UTime))++", file_size = "++integer_to_list(to_int(Size))++", time_spent = "++integer_to_list(to_int(Time))++", result_path = '"++ResultsList++"', error_msg = '"++binary_to_list(error_to_s(Error))++"'".
 
 
 %% @doc Convert epgsql time fromat to number.
@@ -103,6 +120,27 @@ pgtime_to_string({{Year,Month,Day},{Hour,Minute,Seconds}}) ->
 pgtime_to_string(_F) -> "".
 
 
+to_json([]) ->
+  <<"">>;
+
+to_json(List) when is_list(List) ->
+  jiffy:encode({List});
+
+to_json(_) ->
+  <<"">>.
+
+from_json("") ->
+  [];
+
+from_json(Any) ->
+  try jiffy:decode(Any) of
+    {Data} -> [{binary_to_atom(Opt,latin1),proplists:get_value(Opt, Data)} || Opt <- proplists:get_keys(Data)]
+  catch
+    _Error -> 
+      ?E({json_failed, Any, _Error}),
+      []
+  end.
+
 pad(N) when N < 10 -> "0"++integer_to_list(N);
 
 pad(N) -> integer_to_list(N).
@@ -111,20 +149,28 @@ to_int(undefined) -> 0;
 
 to_int(N) -> N.
 
+to_list(null) -> "";
+
+to_list(Str) when is_binary(Str) ->
+  binary_to_list(Str);
+
+to_list(Str) ->
+  Str.
+
 error_to_s(Er) when is_list(Er) ->
-  Er;
+  list_to_binary(Er);
 
 error_to_s(Er) when is_binary(Er) ->
-  binary_to_list(Er);
+  Er;
 
 error_to_s({error,Reason}) ->
   error_to_s(Reason);
 
 error_to_s(null) ->
-  [];
+  <<"">>;
 
 error_to_s(_) ->
-  "Error".
+  <<"Error">>.
 
 
 
@@ -144,7 +190,7 @@ rec_to_job_test_() ->
     result_path= <<"path/to/result">>,
     task_type= <<"do_nothing">>,
     error_msg= <<"command not found">>,
-    ts = <<"2013-10-24 12:00:00">>}, task_record_to_proplist({1,<<"success">>,1,1,1,<<"path/to/file">>,1,<<"path/to/result">>,<<"do_nothing">>,<<"command not found">>,{{2013,10,24},{12,0,0.3}}}))
+    ts = <<"2013-10-24 12:00:00">>, url="http://url", priority="low", options = ""}, task_record_to_proplist({1,<<"success">>,1,1,1,<<"path/to/file">>,1,<<"path/to/result">>,<<"do_nothing">>,<<"command not found">>,{{2013,10,24},{12,0,0.3}}, "http://url", "", "low"}))
   ].
 
 
@@ -162,6 +208,13 @@ rec_to_string_test_() ->
     error_msg= "command not found"}))
   ].
 
+rec_to_task_test_() ->
+  [
+    ?_assertEqual({"http://url", "do_nothing", [{callback, <<"http://callback">>}], 1}, 
+      task_record_to_task({1,<<"success">>,1,1,1,<<"path/to/file">>,1,<<"path/to/result">>,<<"do_nothing">>,<<"command not found">>,{{2013,10,24},{12,0,0.3}}, <<"http://url">>, <<"{\"callback\":\"http://callback\"}">>, <<"low">>})
+      )
+  ].
+
 rec_to_update_string_test_() ->
   [
     ?_assertEqual("status = 'success', download_time = 1, upload_time = 1, file_size = 1, time_spent = 1, result_path = 'path1,path2', error_msg = 'command not found'", stats_to_pg_update_string(#job_stats{id=1,
@@ -175,5 +228,10 @@ rec_to_update_string_test_() ->
       task_type= do_nothing,
       error_msg= "command not found"}))
   ].
+
+to_json_test() ->
+  ?assertEqual(<<"">>, to_json([])),
+  ?assertEqual(<<"{\"id\":1}">>, to_json([{id,1}])),
+  ?assertEqual(<<"{\"id\":1}">>, to_json([{<<"id">>,1}])).
 
 -endif.

@@ -1,6 +1,18 @@
 #! /usr/local/bin/escript
 %%! -pa ebin -pa deps/epgsql/ebin -pa deps/ulitos/ebin
 
+main(["alter"]) ->
+  case file:consult("apps/fyler/priv/fyler.config") of
+    {ok,List} ->
+            alter_db(
+              proplists:get_value(pg_host,List),
+              proplists:get_value(pg_user,List),
+              proplists:get_value(pg_pass,List),
+              proplists:get_value(pg_db,List)
+            );
+      _ ->  io:format("Config not found~n")
+  end;
+
 main(_) ->
   case file:consult("apps/fyler/priv/fyler.config") of
     {ok,List} ->
@@ -33,7 +45,20 @@ create_db(Host,User,Pass,DB) ->
     result_path text,
     task_type varchar(20),
     error_msg text,
+    url text,
+    options json DEFAULT '',
+    priority varchar(20),
     ts timestamp DEFAULT NOW()
   );"),
   io:format("Table 'tasks' created.~n"),
+  pgsql:close(PG).
+
+
+alter_db(Host,User,Pass,DB) ->
+  {ok, PG} = pgsql:connect(Host, User, Pass, [{database,DB}]),
+  {ok,_,_} = pgsql:squery(PG, "ALTER TABLE tasks
+    add column url text,
+    add column options text DEFAULT '',
+    add column priority varchar(20);"),
+  io:format("Table 'tasks' updated.~n"),
   pgsql:close(PG).

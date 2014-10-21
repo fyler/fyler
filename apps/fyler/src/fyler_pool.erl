@@ -27,6 +27,7 @@ start_link() ->
 %% gen_server callbacks
 -record(state, {
   enabled = true :: boolean(),
+  busy = false :: boolean(),
   category ::atom(),
   server_node ::atom(),
   connected = false ::false|true|pending,
@@ -65,7 +66,7 @@ init(_Args) ->
 
   MaxActive = ?Config(max_active,1),
 
-  lager:md([{context, {[{category, Category}], {max_active, MaxActive}}}]),
+  lager:md([{context, {[{category, Category}, {max_active, MaxActive}]}}]),
 
   {ok, #state{storage_dir = Dir,  category = Category, server_node = Server, max_active = MaxActive}}.
 
@@ -127,12 +128,11 @@ handle_call({cancel_task, TaskId}, _From, #state{tasks = Tasks, active_tasks = A
       {reply, ok, State#state{tasks = queue:filter(fun(#task{id = Id}) when Id == TaskId -> false; (_) -> true end, Tasks)}}
   end;
 
-handle_call({enabled, true}, _From, #state{enabled = false, connected = Connected} = State) ->
-  self() ! next_task,
-  erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task),
-
-  if Connected
-    ->  fyler_event:pool_enabled();
+handle_call({enabled, true}, _From, #state{enabled = false, connected = Connected, busy = Busy} = State) ->
+  if Connected and not Busy
+    ->  
+      erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task),
+      fyler_event:pool_enabled();
     true -> ok
   end,
 
@@ -150,6 +150,8 @@ handle_call({enabled, false}, _From, #state{enabled = true,connected = Connected
 handle_call({enabled, true}, _From, #state{enabled = true} = State) -> {reply, false, State};
 handle_call({enabled, false}, _From, #state{enabled = false} = State) -> {reply, false, State};
 
+handle_call({state, N}, _From, State) ->
+  {reply,element(N,State),State};
 
 handle_call(_Request, _From, State) ->
   ?D(_Request),
@@ -180,11 +182,11 @@ handle_info(pool_accepted,#state{finished_tasks = Finished} = State) ->
   {noreply,State#state{connected = true, finished_tasks = []}};
 
 
-handle_info(connect_to_server, #state{server_node = Node, category = Category, enabled = Enabled,active_tasks = Tasks} = State) ->
+handle_info(connect_to_server, #state{server_node = Node, category = Category, enabled = Enabled,active_tasks = Tasks, busy = Busy} = State) ->
   ?D({connecting_to_node, Node}),
   Connected = case net_kernel:connect_node(Node) of
                 true ->
-                  {fyler_server,Node} ! {pool_connected,node(),Category,Enabled,length(Tasks)},
+                  {fyler_server,Node} ! {pool_connected,node(),Category,(Enabled and not Busy),length(Tasks)},
                   pending;
                 _ -> ?E(server_not_found),
                       erlang:send_after(?POLL_SERVER_TIMEOUT,self(),connect_to_server),
@@ -216,22 +218,43 @@ handle_info(next_task, #state{tasks = Tasks, active_tasks = Active, storage_dir 
 handle_info(try_next_task, #state{enabled = false} = State) ->
   {noreply, State};
 
-handle_info(try_next_task, #state{max_active = Max, active_tasks = Active} = State) when Max =< length(Active) ->
+handle_info(try_next_task, #state{max_active = Max, active_tasks = Active, connected = Connected, busy = Busy} = State) when Max =< length(Active) ->
   ?D({pool_is_busy}),
-  erlang:send_after(?POOL_BUSY_TIMEOUT, self(), try_next_task),
-  {noreply, State};
+  if Connected and not Busy
+    ->
+      fyler_event:pool_disabled();
+    true -> ok
+  end,
 
-handle_info(try_next_task, #state{tasks = Tasks} = State) ->
+  if not Busy
+    ->
+      erlang:send_after(?POOL_BUSY_TIMEOUT, self(), try_next_task);
+    true -> ok
+  end,
+
+  {noreply, State#state{busy = true}};
+
+handle_info(try_next_task, #state{tasks = Tasks, connected = Connected, busy = Busy} = State) ->
   Empty = queue:is_empty(Tasks),
-  if Empty
-    -> ok;
-    true -> self() ! next_task,
-      erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task)
-  end,
-  {noreply, State};
+  NewBusy =
+    if Empty
+      -> 
+        if Connected and Busy
+          -> 
+            fyler_event:pool_enabled(),
+            false;
+          true -> Busy
+        end;
+      true -> 
+        self() ! next_task,
+        erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task),
+        Busy
+    end,
+  {noreply, State#state{busy = NewBusy}};
 
 
-handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, active_tasks = Active, pids = Pids} = State) ->
+handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, active_tasks = Active, pids = Pids, max_active = Max, busy = Busy} = State) ->
+  ?D({down_normal}),
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
                 #task{} = Task ->
                   cleanup_task_files(Task),
@@ -242,9 +265,21 @@ handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, acti
     -> self() ! next_task;
     true -> ok
   end,
-  {noreply, State#state{active_tasks = NewActive, pids = maps:remove(Ref, Pids)}};
 
-handle_info({'DOWN', Ref, process, _Pid, killed}, #state{enabled = Enabled, active_tasks = Active, pids = Pids} = State) ->
+  ?D({length(NewActive),Max,Busy}),
+
+  NewBusy = 
+    if (length(NewActive)<Max) and Busy
+      -> 
+        fyler_event:pool_enabled(),
+        false;
+      true -> Busy
+    end,
+
+  {noreply, State#state{active_tasks = NewActive, busy = NewBusy, pids = maps:remove(Ref, Pids)}};
+
+handle_info({'DOWN', Ref, process, _Pid, killed}, #state{enabled = Enabled, active_tasks = Active, pids = Pids, max_active = Max, busy = Busy} = State) ->
+  ?D({down_killed}),
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
                 #task{} = Task ->
                   cleanup_task_files(Task),
@@ -255,9 +290,19 @@ handle_info({'DOWN', Ref, process, _Pid, killed}, #state{enabled = Enabled, acti
     -> self() ! next_task;
     true -> ok
   end,
-  {noreply, State#state{active_tasks = NewActive, pids = maps:remove(Ref, Pids)}};
 
-handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, active_tasks = Active, pids = Pids} = State) ->
+  NewBusy = 
+    if (length(NewActive)<Max) and Busy
+      -> 
+        fyler_event:pool_enabled(),
+        false;
+      true -> Busy
+    end,
+
+  {noreply, State#state{active_tasks = NewActive, busy = NewBusy, pids = maps:remove(Ref, Pids)}};
+
+handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, active_tasks = Active, pids = Pids, max_active = Max, busy = Busy} = State) ->
+  ?D({donw, Other}),
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
                 #task{} = Task -> 
                   cleanup_task_files(Task),
@@ -269,7 +314,16 @@ handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, activ
     -> self() ! next_task;
     true -> ok
   end,
-  {noreply, State#state{active_tasks = NewActive, pids = maps:remove(Ref, Pids)}};
+
+  NewBusy = 
+    if (length(NewActive)<Max) and Busy
+      -> 
+        fyler_event:pool_enabled(),
+        false;
+      true -> Busy
+    end,
+  
+  {noreply, State#state{active_tasks = NewActive, busy = NewBusy, pids = maps:remove(Ref, Pids)}};
 
 
 handle_info({nodedown,Node},#state{server_node = Node}=State) ->
@@ -299,3 +353,102 @@ code_change(_OldVsn, State, _Extra) ->
 cleanup_task_files(#task{file = #file{dir = Dir}})->
   ?D({cleanup, Dir}),
   ulitos_file:recursively_del_dir(Dir).
+
+
+-ifdef(TEST).
+
+-include_lib("eunit/include/eunit.hrl").
+
+-define(setup(F), {setup, fun setup_/0, fun cleanup_/1, F}).
+
+-define(task(Id), #task{id=Id, file=#file{tmp_path = "file", dir = "test"++integer_to_list(Id), is_aws = true, url ="https://test.s3.amazonaws.com/test.smth"}, type=do_nothing, category=test}).
+-define(failed_task(Id), #task{id=Id, file=#file{tmp_path = "file", dir = "fail_test"++integer_to_list(Id), is_aws = true, url ="https://test.s3.amazonaws.com/test.smth"}, type=do_fail, category=test}).
+
+
+setup_() ->
+  lager:start(),
+  application:set_env(fyler,config,"fyler.config.test.pool"),
+  application:set_env(fyler,max_active,1),
+  meck:new(aws_cli,[non_strict]),
+  meck:expect(aws_cli, copy_folder, fun(_,_,_) -> timer:sleep(1000) end),
+  meck:expect(aws_cli, copy_object, fun(_,_) -> timer:sleep(1000) end),
+  meck:expect(aws_cli, dir_exists, fun(_) -> true end),
+  filelib:ensure_dir("./tmp"),
+  file:make_dir("./tmp"),
+  file:write_file("./tmp/file", <<"0">>),
+  fyler:start().
+
+cleanup_(_) ->
+  meck:unload(aws_cli),
+  application:stop(lager),
+  fyler:stop().
+
+max_active_test_() ->
+  [
+    {"should have only one active task",
+    ?setup(
+      fun max_active_t_/1
+      )
+    },
+    {"should not start new task after enabled if max active reached",
+    ?setup(
+      fun max_active_enabled_t_/1
+      )
+    },
+    {"should start again after tasks empty",
+    ?setup(
+      fun max_active_again_t_/1
+      )
+    }
+  ].
+
+max_active_t_(_) ->
+  fyler_pool:run_task(?task(1)),
+  fyler_pool:run_task(?task(2)),
+  fyler_pool:run_task(?task(3)),
+  [
+    ?_assertEqual(1, length(gen_server:call(fyler_pool,{state, #state.active_tasks}))),
+    ?_assertEqual(2, queue:len(gen_server:call(fyler_pool,{state, #state.tasks}))),
+    ?_assertEqual(true, gen_server:call(fyler_pool,{state, #state.busy}))
+  ].
+
+max_active_enabled_t_(_) ->
+  fyler_pool:run_task(?task(1)),
+  gen_server:call(fyler_pool, {enabled,false}),
+  fyler_pool:run_task(?task(2)),
+  fyler_pool:run_task(?task(3)),
+  gen_server:call(fyler_pool, {enabled,true}),
+  [
+    ?_assertEqual(1, length(gen_server:call(fyler_pool,{state, #state.active_tasks}))),
+    ?_assertEqual(2, queue:len(gen_server:call(fyler_pool,{state, #state.tasks})))
+  ].
+
+max_active_again_t_(_) ->
+  fyler_pool:run_task(?task(1)),
+  fyler_pool:run_task(?task(2)),
+  timer:sleep(10000),
+  fyler_pool:run_task(?task(2)),
+  [
+    ?_assertEqual(1, length(gen_server:call(fyler_pool,{state, #state.active_tasks}))),
+    ?_assertEqual(0, queue:len(gen_server:call(fyler_pool,{state, #state.tasks})))
+  ].
+
+
+failing_task_test_() ->
+  [
+    {"should handle worker 'DOWN' on system error",
+    ?setup(
+      fun system_fail_t_/1
+      )
+    }
+  ].
+
+system_fail_t_(_) ->
+  fyler_pool:run_task(?failed_task(1)),
+  timer:sleep(5000),
+  [
+    ?_assertEqual(0, length(gen_server:call(fyler_pool,{state, #state.active_tasks}))),
+    ?_assertEqual(0, queue:len(gen_server:call(fyler_pool,{state, #state.tasks})))
+  ].
+
+-endif.

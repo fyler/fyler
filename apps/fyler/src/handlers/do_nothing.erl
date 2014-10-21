@@ -5,12 +5,15 @@
 -include("../fyler.hrl").
 -include("../../include/log.hrl").
 
--export([run/2, category/0]).
+-export([run/2, run/1, category/0]).
 
 -define(COMMAND(In), os:cmd("sleep 2 && stat " ++ In)).
 
 category() ->
   test.
+
+run(X) ->
+  run(X,[]).
 
 run(#file{tmp_path = Path},_Opts) ->
   Start = ulitos:timestamp(),

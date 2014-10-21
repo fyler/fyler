@@ -12,6 +12,7 @@
          cowboy,
          mimetypes,
          ulitos,
+         lager_honeybadger_backend,
          fyler
         ]},
        {rel, "start_clean", "",
