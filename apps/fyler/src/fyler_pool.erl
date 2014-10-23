@@ -132,7 +132,7 @@ handle_call({enabled, true}, _From, #state{enabled = false, connected = Connecte
   if Connected and not Busy
     ->  
       erlang:send_after(?TRY_NEXT_TIMEOUT, self(), try_next_task),
-      fyler_event:pool_enabled();
+      pool_enabled(State);
     true -> ok
   end,
 
@@ -141,7 +141,7 @@ handle_call({enabled, true}, _From, #state{enabled = false, connected = Connecte
 handle_call({enabled, false}, _From, #state{enabled = true,connected = Connected} = State) ->
 
   if Connected
-    ->  fyler_event:pool_disabled();
+    ->  pool_disabled(State);
     true -> ok
   end,
 
@@ -222,7 +222,7 @@ handle_info(try_next_task, #state{max_active = Max, active_tasks = Active, conne
   ?D({pool_is_busy}),
   if Connected and not Busy
     ->
-      fyler_event:pool_disabled();
+      pool_disabled(State);
     true -> ok
   end,
 
@@ -241,7 +241,7 @@ handle_info(try_next_task, #state{tasks = Tasks, connected = Connected, busy = B
       -> 
         if Connected and Busy
           -> 
-            fyler_event:pool_enabled(),
+            pool_enabled(State),
             false;
           true -> Busy
         end;
@@ -271,7 +271,7 @@ handle_info({'DOWN', Ref, process, _Pid, normal}, #state{enabled = Enabled, acti
   NewBusy = 
     if (length(NewActive)<Max) and Busy
       -> 
-        fyler_event:pool_enabled(),
+        pool_enabled(State),
         false;
       true -> Busy
     end,
@@ -294,7 +294,7 @@ handle_info({'DOWN', Ref, process, _Pid, killed}, #state{enabled = Enabled, acti
   NewBusy = 
     if (length(NewActive)<Max) and Busy
       -> 
-        fyler_event:pool_enabled(),
+        pool_enabled(State),
         false;
       true -> Busy
     end,
@@ -318,7 +318,7 @@ handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, activ
   NewBusy = 
     if (length(NewActive)<Max) and Busy
       -> 
-        fyler_event:pool_enabled(),
+        pool_enabled(State),
         false;
       true -> Busy
     end,
@@ -353,6 +353,12 @@ code_change(_OldVsn, State, _Extra) ->
 cleanup_task_files(#task{file = #file{dir = Dir}})->
   ?D({cleanup, Dir}),
   ulitos_file:recursively_del_dir(Dir).
+
+pool_enabled(#state{category = Category}) ->
+  fyler_event:pool_enabled(node(), Category).
+
+pool_disabled(#state{category = Category}) ->
+  fyler_event:pool_disabled(node(), Category).
 
 
 -ifdef(TEST).

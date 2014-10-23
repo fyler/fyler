@@ -82,6 +82,9 @@ init(_Args) ->
 
   Priorities = ?Config(priorities, #{}),
 
+  Instances = ?Config(instances, #{}),
+  maps:map(fun(Category, Opts) -> fyler_sup:start_pool_monitor(Category, Opts) end, Instances),
+
   ?I({server_start, AwsDir, Buckets}),
 
   %% check db for task in progress and restart them
@@ -354,6 +357,13 @@ handle_info({pool_connected, Node, Category, Enabled, Num}, #state{tasks = Tasks
       self() ! {try_next_task, Category};
     true -> ok
   end,
+
+  fyler_event:pool_connected(Node, Category),
+  if
+    not Enabled -> fyler_event:pool_disabled(Node, Category);
+    true -> ok
+  end,
+
   {noreply, State#state{tasks = NewTasks}};
 
 handle_info({try_next_task, Category}, #state{tasks = Tasks, busy_timers = Timers, task_filter = Filter}=State) ->
@@ -382,6 +392,7 @@ handle_info({try_next_task, Category}, #state{tasks = Tasks, busy_timers = Timer
   {noreply, State#state{tasks=NewTasks, busy_timers = NewTimers, task_filter = NewFilter}};
 
 handle_info({alarm_high_idle_time, Type}, State) ->
+  fyler_event:high_idle_time(Type),
   ?E({high_idle_time,Type}),
   {noreply, State};
 
@@ -392,7 +403,8 @@ handle_info({alarm_too_many_tasks, Type}, State) ->
 handle_info({nodedown, Node}, #state{tasks = Tasks} = State) ->
   ?E({nodedown, Node}),
   NewTasks = case ets:lookup(?T_POOLS, Node) of 
-    [#pool{}] ->
+    [#pool{category = Category}] ->
+      fyler_event:pool_down(Node, Category),
       handle_dead_pool(Node,Tasks);
     _ -> 
       ?E({unknown_node, Node}),

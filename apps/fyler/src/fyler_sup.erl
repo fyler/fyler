@@ -8,7 +8,7 @@
 %% Supervisor callbacks
 -export([init/1]).
 
--export([start_worker/1,stop_worker/1]).
+-export([start_worker/1, stop_worker/1, start_pool_monitor/2]).
 
 %% Helper macro for declaring children of supervisor
 -define(CHILD(I, Type), {I, {I, start_link, []}, permanent, 5000, Type, [I]}).
@@ -33,6 +33,9 @@ start_worker(Task) ->
 stop_worker(Pid) ->
   supervisor:terminate_child(worker_sup,Pid).
 
+start_pool_monitor(Category, Opts) ->
+  supervisor:start_child(pool_monitor_sup, [Category, Opts]).
+
 start_link(server) ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []);
 
@@ -51,10 +54,23 @@ init([worker]) ->
       temporary, 2000, worker, [fyler_worker]}
   ]}};
 
+init([pool_monitor]) ->
+  {ok, {{simple_one_for_one, 5, 10}, [
+    {undefined, {fyler_monitor_pool, start_link, []},
+      transient, 2000, worker, [fyler_monitor_pool]}
+  ]}};
+
 init([]) ->
     Children = [
-      ?CHILD(fyler_event,worker),
+      {pool_monitor_sup,
+        {supervisor,start_link,[{local, pool_monitor_sup}, ?MODULE, [pool_monitor]]},
+        permanent,
+        infinity,
+        supervisor,
+        []
+      },
       ?CHILD(fyler_server,worker),
+      ?CHILD(fyler_event,worker),
       ?CHILD(fyler_event_listener,worker)
     ],
 
@@ -69,7 +85,7 @@ init([]) ->
 
     PoolSpecs = [poolboy:child_spec(?PG_POOL, PoolArgs, [])],
 
-    {ok, { {one_for_one, 5, 10}, Children++PoolSpecs} };
+    {ok, { {one_for_one, 5, 10}, PoolSpecs++Children} };
 
 init([pool]) ->
   Children = [

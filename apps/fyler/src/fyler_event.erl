@@ -17,7 +17,7 @@
 %% gen_event callbacks
 -export([init/1, handle_call/2, handle_event/2, handle_info/2, terminate/2, code_change/3]).
 
--export([task_completed/2,task_failed/2, pool_enabled/0,pool_disabled/0]).
+-export([task_completed/2,task_failed/2, pool_enabled/2, pool_disabled/2, pool_connected/2, pool_down/2, high_idle_time/1]).
 
 start_link() ->
   ?D(start_fevent),
@@ -66,14 +66,14 @@ remove_handler(Handler) ->
 %% @end
 
 
-task_completed(Task, Stats) ->
-  gen_event:notify({global, ?MODULE}, #fevent{type = complete, node=node(), task = Task,stats = Stats}).
+task_completed(#task{category = Category} = Task, Stats) ->
+  gen_event:notify({global, ?MODULE}, #fevent{type = complete, node=node(), category = Category, task = Task,stats = Stats}).
 
 %% @doc Send when task job is failed.
 %% @end
 
-task_failed(Task, #job_stats{error_msg = Error} = Stats) ->
-  gen_event:notify({global, ?MODULE}, #fevent{type = failed, node=node(), task = Task, error = Error, stats = Stats});
+task_failed(#task{category = Category} = Task, #job_stats{error_msg = Error} = Stats) ->
+  gen_event:notify({global, ?MODULE}, #fevent{type = failed, node=node(), category = Category, task = Task, error = Error, stats = Stats});
 
 
 task_failed(Task, Error) ->
@@ -83,15 +83,32 @@ task_failed(Task, Error) ->
 %% @doc
 %% @end
 
-pool_enabled() ->
-  gen_event:notify({global, ?MODULE}, #fevent{node=node(), type = pool_enabled}).
+pool_enabled(Node, Category) ->
+  gen_event:notify({global, ?MODULE}, #fevent{node = Node, type = pool_enabled, category = Category}).
 
 %% @doc
 %% @end
 
-pool_disabled() ->
-  gen_event:notify({global, ?MODULE}, #fevent{node=node(), type = pool_disabled}).
+pool_disabled(Node, Category) ->
+  gen_event:notify({global, ?MODULE}, #fevent{node = Node, type = pool_disabled, category = Category}).
 
+%% @doc
+%% @end
+
+pool_connected(Node, Category) ->
+  gen_event:notify({global, ?MODULE}, #fevent{node = Node, type = pool_connected, category = Category}).
+
+%% @doc
+%% @end
+
+pool_down(Node, Category) ->
+  gen_event:notify({global, ?MODULE}, #fevent{node = Node, type = pool_down, category = Category}).
+
+%% @doc
+%% @end
+
+high_idle_time(Category) ->
+  gen_event:notify({global, ?MODULE}, #fevent{type = high_idle_time, category = Category}).
 
 init([]) ->
   {ok, state}.
