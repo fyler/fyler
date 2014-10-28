@@ -79,7 +79,7 @@ monitoring({pool_down, Node}, #state{indicator = Ind, node_counter = N, active_n
   NextState =
     case NewInd + 1 of
       N -> start;
-      _ -> if (N < 2) -> monitoring; true -> pre_stop end
+      _ -> if (N - 1 =< 1) -> monitoring; true -> pre_stop end
     end,
   ?D({monitoring, NextState}),
   case NextState of
