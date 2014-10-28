@@ -62,13 +62,15 @@ init([Category, Opts]) ->
   end.
 
 monitoring(high_idle_time, #state{} = State) ->
+  ?D({monitoring, start}),
   {next_state, start, State};
 
 monitoring({pool_connected, Node}, #state{indicator = Ind, node_counter = N, active_nodes = Nodes, passive_nodes = PassiveNodes, node_activity = Activities} = State) ->
-  ?D({pool_connected, Node}),
+  ?D({pool_connected, Node, Nodes}),
   monitoring({pool_enabled, Node}, State#state{indicator = Ind + 1, node_counter = N + 1, active_nodes = [Node | Nodes], passive_nodes = lists:delete(Node, PassiveNodes), node_activity = maps:put(Node, true, Activities)});
 
 monitoring({pool_down, Node}, #state{indicator = Ind, node_counter = N, active_nodes = Nodes, passive_nodes = PassiveNodes, node_activity = Activities} = State) ->
+  ?D({pool_down, Node}),
   NewInd =
     case maps:get(Node, Activities, true) of
       true -> Ind;
@@ -79,40 +81,47 @@ monitoring({pool_down, Node}, #state{indicator = Ind, node_counter = N, active_n
       N -> start;
       _ -> monitoring
     end,
+  ?D({monitoring, NextState}),
   {next_state, NextState, State#state{indicator = NewInd, node_counter = N - 1, active_nodes = lists:delete(Node, Nodes), passive_nodes = [Node | PassiveNodes]}};
 
 monitoring({pool_enabled, Node}, #state{indicator = Ind, active_nodes = [Node], node_activity = Activities} = State) ->
   {next_state, monitoring, State#state{indicator = Ind - 1, node_activity = maps:put(Node, true, Activities)}};
 
 monitoring({pool_enabled, Node}, #state{indicator = Ind, node_activity = Activities} = State) ->
+  ?D({{pool_enabled, Node}}),
+  ?D({monitoring, pre_stop}),
   {next_state, pre_stop, State#state{indicator = Ind - 1, node_activity = maps:put(Node, true, Activities)}, 1000};
 
 monitoring({pool_disabled, Node}, #state{indicator = Ind, passive_nodes = [], node_activity = Activities} = State) ->
   {next_state, monitoring, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
 
 monitoring({pool_disabled, Node}, #state{indicator = Ind, node_counter = N, node_activity = Activities} = State) when N == Ind + 1 ->
+  ?D({monitoring, start}),
   {next_state, start, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
 
 monitoring({pool_disabled, Node}, #state{indicator = Ind, node_activity = Activities} = State)->
   {next_state, monitoring, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
 
 monitoring(_Event, State) ->
-  {next_state, stop, State}.
+  {next_state, monitoring, State}.
 
 start(high_idle_time, #state{passive_nodes = [Node |_], node_to_id = NodeToId, timer = Timer} = State) ->
   ?D({start_new_instance, Node}),
+  ?D({start, after_start}),
   aws_cli:start_instance(maps:get(Node, NodeToId)),
   Ref = make_ref(),
   erlang:send_after(Timer, self(), {start, Ref}),
   {next_state, after_start, State#state{start_ref = Ref}};
 
 start({pool_enabled, Node}, #state{indicator = Ind, node_activity = Activities} = State) ->
+  ?D({start, monitoring}),
   {next_state, monitoring, State#state{indicator = Ind - 1, node_activity = maps:put(Node, true, Activities)}};
 
 start({pool_disabled, Node}, #state{indicator = Ind, node_activity = Activities} = State) ->
   {next_state, start, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
 
 start({pool_connected, Node}, #state{node_counter = N, active_nodes = Nodes, passive_nodes = PassiveNodes, node_activity = Activities} = State) ->
+  ?D({start, monitoring}),
   {next_state, monitoring, State#state{node_counter = N + 1, active_nodes = [Node | Nodes], passive_nodes = lists:delete(Node, PassiveNodes), node_activity = maps:put(Node, true, Activities)}};
 
 start({pool_down, Node}, #state{indicator = Ind, node_counter = N, active_nodes = Nodes, passive_nodes = PassiveNodes, node_activity = Activities} = State) ->
@@ -133,6 +142,7 @@ after_start({pool_disabled, Node}, #state{indicator = Ind, node_activity = Activ
   {next_state, after_start, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
 
 after_start({pool_connected, Node}, #state{node_counter = N, active_nodes = Nodes, passive_nodes = PassiveNodes, node_activity = Activities} = State) ->
+  ?D({after_start, monitoring}),
   {next_state, monitoring, State#state{node_counter = N + 1, active_nodes = [Node | Nodes], passive_nodes = lists:delete(Node, PassiveNodes), node_activity = maps:put(Node, true, Activities)}};
 
 after_start({pool_down, Node}, #state{indicator = Ind, node_counter = N, active_nodes = Nodes, passive_nodes = PassiveNodes, node_activity = Activities} = State) ->
@@ -147,11 +157,13 @@ after_start(_Event, State) ->
   {next_state, after_start, State}.
 
 pre_stop(timeout, #state{timer = Timer} = State) ->
+  ?D({pre_stop, stop}),
   Ref = make_ref(),
   erlang:send_after(Timer, self(), {stop, Ref}),
   {next_state, stop, #state{stop_ref = Ref} = State};
 
 pre_stop({pool_connected, Node}, #state{node_counter = N, active_nodes = Nodes, passive_nodes = PassiveNodes, timer = Timer, node_activity = Activities} = State) ->
+  ?D({pre_stop, stop}),
   Ref = make_ref(),
   erlang:send_after(Timer, self(), {stop, Ref}),
   {next_state, stop, State#state{node_counter = N + 1, active_nodes = [Node | Nodes], passive_nodes = lists:delete(Node, PassiveNodes), stop_ref = Ref, node_activity = maps:put(Node, true, Activities)}};
@@ -167,22 +179,27 @@ pre_stop({pool_down, Node}, #state{indicator = Ind, node_counter = N, active_nod
       N -> start;
       _ -> monitoring
     end,
+  ?D({pre_stop, NextState}),
   {next_state, NextState, State#state{indicator = NewInd, node_counter = N - 1, active_nodes = lists:delete(Node, Nodes), passive_nodes = [Node | PassiveNodes]}};
 
 pre_stop({pool_enabled, Node}, #state{indicator = Ind, timer = Timer, node_activity = Activities} = State) ->
   Ref = make_ref(),
   erlang:send_after(Timer, self(), {stop, Ref}),
+  ?D({pre_stop, stop}),
   {next_state, stop, State#state{indicator = Ind - 1, stop_ref = Ref, node_activity = maps:put(Node, true, Activities)}};
 
 pre_stop({pool_disabled, Node}, #state{indicator = Ind, node_counter = N, node_activity = Activities} = State)  when N == Ind + 1 ->
+  ?D({pre_stop, monitoring}),
   {next_state, monitoring, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
 
 pre_stop({pool_disabled, Node}, #state{indicator = Ind, timer = Timer, node_activity = Activities} = State) ->
+  ?D({pre_stop, stop}),
   Ref = make_ref(),
   erlang:send_after(Timer, self(), {stop, Ref}),
   {next_state, stop, State#state{indicator = Ind + 1, stop_ref = Ref, node_activity = maps:put(Node, false, Activities)}};
 
 pre_stop(high_idle_time, State) ->
+  ?D({pre_stop, monitoring}),
   {next_state, monitoring, State};
 
 pre_stop(_Event, State) ->
@@ -202,18 +219,21 @@ stop({pool_down, Node}, #state{indicator = Ind, node_counter = N, active_nodes =
       N -> start;
       _ -> stop
     end,
+  ?D({stop, NextState}),
   {next_state, NextState, State#state{indicator = NewInd, node_counter = N - 1, active_nodes = lists:delete(Node, Nodes), passive_nodes = [Node | PassiveNodes]}};
 
 stop({pool_enabled, Node}, #state{indicator = Ind, node_activity = Activities} = State) ->
   {next_state, stop, State#state{indicator = Ind - 1, node_activity = maps:put(Node, true, Activities)}};
 
 stop({pool_disabled, Node}, #state{indicator = Ind, node_counter = N, node_activity = Activities} = State) when N == Ind + 1 ->
+  ?D({stop, monitoring}),
   {next_state, monitoring, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
 
 stop({pool_disabled, Node}, #state{indicator = Ind, node_activity = Activities} = State) ->
   {next_state, stop, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
 
 stop(high_idle_time, State) ->
+  ?D({stop, monitoring}),
   {next_state, monitoring, State};
 
 stop(_Event, State) ->
@@ -249,20 +269,25 @@ handle_info(start, start_monitor, #state{category = Category, instances = Instan
   {next_state, monitoring, State#state{indicator = Indicator, node_counter = length(ActiveNodes), active_nodes = ActiveNodes, passive_nodes = PassiveNodes, node_to_id = NodeToId}};
 
 handle_info({stop, Ref}, stop, #state{active_nodes = [Node |_], node_to_id = NodeToId, stop_ref = Ref} = State) ->
+  ?D({stop_instance, Node}),
+  ?D({stop, monitoring}),
   aws_cli:stop_instance(maps:get(Node, NodeToId)),
   {next_state, monitoring, State};
 
 handle_info({stop, _Ref}, pre_stop, #state{timer = Timer} = State) ->
+  ?D({pre_stop, stop}),
   Ref = make_ref(),
   erlang:send_after(Timer, self(), {stop, Ref}),
   {next_state, stop, State#state{stop_ref = Ref}};
 
 handle_info({start, _Ref}, pre_stop, #state{timer = Timer} = State) ->
+  ?D({pre_stop, stop}),
   Ref = make_ref(),
   erlang:send_after(Timer, self(), {stop, Ref}),
   {next_state, stop, State#state{stop_ref = Ref}};
 
 handle_info({start, Ref}, after_start, #state{start_ref = Ref} = State) ->
+  ?D({after_start, monitoring}),
   {next_state, monitoring, State};
 
 handle_info(_Info, StateName, State) ->
