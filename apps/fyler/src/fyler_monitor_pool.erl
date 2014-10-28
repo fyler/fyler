@@ -194,8 +194,8 @@ pre_stop({pool_enabled, Node}, #state{indicator = Ind, timer = Timer, node_activ
   {next_state, stop, State#state{indicator = Ind - 1, stop_ref = Ref, node_activity = maps:put(Node, true, Activities)}};
 
 pre_stop({pool_disabled, Node}, #state{indicator = Ind, node_counter = N, node_activity = Activities} = State)  when N == Ind + 1 ->
-  ?D({pre_stop, monitoring}),
-  {next_state, monitoring, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
+  ?D({pre_stop, start}),
+  {next_state, start, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
 
 pre_stop({pool_disabled, Node}, #state{indicator = Ind, timer = Timer, node_activity = Activities} = State) ->
   ?D({pre_stop, stop}),
@@ -231,8 +231,8 @@ stop({pool_enabled, Node}, #state{indicator = Ind, node_activity = Activities} =
   {next_state, stop, State#state{indicator = Ind - 1, node_activity = maps:put(Node, true, Activities)}};
 
 stop({pool_disabled, Node}, #state{indicator = Ind, node_counter = N, node_activity = Activities} = State) when N == Ind + 1 ->
-  ?D({stop, monitoring}),
-  {next_state, monitoring, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
+  ?D({stop, start}),
+  {next_state, start, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
 
 stop({pool_disabled, Node}, #state{indicator = Ind, node_activity = Activities} = State) ->
   {next_state, stop, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};

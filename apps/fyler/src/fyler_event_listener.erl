@@ -56,6 +56,10 @@ handle_event(#fevent{type = failed, node = Node, task = #task{id=TaskId, file = 
       {ok, State}
   end;
 
+handle_event(#fevent{type = aborted, node = Node}, State) ->
+  gen_server:cast(fyler_server,{task_finished,Node}),
+  {ok, State};
+
 handle_event(#fevent{type = pool_enabled, node = Node}, State) ->
   gen_server:cast(fyler_server,{pool_enabled,Node, true}),
   {ok, State};
