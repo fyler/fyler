@@ -79,10 +79,15 @@ monitoring({pool_down, Node}, #state{indicator = Ind, node_counter = N, active_n
   NextState =
     case NewInd + 1 of
       N -> start;
-      _ -> pre_stop
+      _ -> if (N < 2) -> monitoring; true -> pre_stop end
     end,
   ?D({monitoring, NextState}),
-  {next_state, NextState, State#state{indicator = NewInd, node_counter = N - 1, active_nodes = lists:delete(Node, Nodes), passive_nodes = [Node | PassiveNodes]}};
+  case NextState of
+    pre_stop ->
+      {next_state, NextState, State#state{indicator = NewInd, node_counter = N - 1, active_nodes = lists:delete(Node, Nodes), passive_nodes = [Node | PassiveNodes]}, 1000};
+    _ ->
+      {next_state, NextState, State#state{indicator = NewInd, node_counter = N - 1, active_nodes = lists:delete(Node, Nodes), passive_nodes = [Node | PassiveNodes]}}
+  end;
 
 monitoring({pool_enabled, Node}, #state{indicator = Ind, active_nodes = [Node], node_activity = Activities} = State) ->
   {next_state, monitoring, State#state{indicator = Ind - 1, node_activity = maps:put(Node, true, Activities)}};
@@ -267,6 +272,10 @@ handle_info(start, start_monitor, #state{category = Category, instances = Instan
   PassiveNodes = lists:subtract(AllNodes, ActiveNodes),
   ?I({fyler_monitor_pool_started, Category}),
   {next_state, monitoring, State#state{indicator = Indicator, node_counter = length(ActiveNodes), active_nodes = ActiveNodes, passive_nodes = PassiveNodes, node_to_id = NodeToId}};
+
+handle_info({stop, Ref}, stop, #state{active_nodes = [_Node], stop_ref = Ref} = State) ->
+  ?D({stop, monitoring}),
+  {next_state, monitoring, State};
 
 handle_info({stop, Ref}, stop, #state{active_nodes = [Node |_], node_to_id = NodeToId, stop_ref = Ref} = State) ->
   ?D({stop_instance, Node}),
