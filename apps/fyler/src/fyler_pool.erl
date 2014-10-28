@@ -302,11 +302,11 @@ handle_info({'DOWN', Ref, process, _Pid, killed}, #state{enabled = Enabled, acti
   {noreply, State#state{active_tasks = NewActive, busy = NewBusy, pids = maps:remove(Ref, Pids)}};
 
 handle_info({'DOWN', Ref, process, _Pid, Other}, #state{enabled = Enabled, active_tasks = Active, pids = Pids, max_active = Max, busy = Busy} = State) ->
-  ?D({donw, Other}),
+  ?D({down, Other}),
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
                 #task{} = Task -> 
                   cleanup_task_files(Task),
-                  fyler_event:task_failed(Task, Other),
+                  fyler_event:task_failed(Task, #job_stats{error_msg = Other}),
                   lists:keydelete(Ref, #task.worker, Active);
                 _ -> Active
               end,
