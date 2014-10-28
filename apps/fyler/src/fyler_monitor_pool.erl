@@ -15,6 +15,7 @@
 -export([init/1,
   monitoring/2,
   start/2,
+  after_start/2,
   pre_stop/2,
   stop/2,
   handle_event/3,
@@ -31,6 +32,7 @@
                 node_activity = #{} :: #{atom() => true | false},
                 node_to_id :: #{atom() => iolist()},
                 stop_ref :: reference() | undefined,
+                start_ref :: reference() | undefined,
                 timer :: non_neg_integer(),
                 instances = [] :: [iolist()]}).
 
@@ -97,10 +99,12 @@ monitoring({pool_disabled, Node}, #state{indicator = Ind, node_activity = Activi
 monitoring(_Event, State) ->
   {next_state, stop, State}.
 
-start(high_idle_time, #state{passive_nodes = [Node |_], node_to_id = NodeToId} = State) ->
+start(high_idle_time, #state{passive_nodes = [Node |_], node_to_id = NodeToId, timer = Timer} = State) ->
   ?D({start_new_instance, Node}),
   aws_cli:start_instance(maps:get(Node, NodeToId)),
-  {next_state, monitoring, State};
+  Ref = make_ref(),
+  erlang:send_after(Timer, self(), {stop, Ref}),
+  {next_state, after_start, State#state{start_ref = Ref}};
 
 start({pool_enabled, Node}, #state{indicator = Ind, node_activity = Activities} = State) ->
   {next_state, monitoring, State#state{indicator = Ind - 1, node_activity = maps:put(Node, true, Activities)}};
@@ -121,6 +125,26 @@ start({pool_down, Node}, #state{indicator = Ind, node_counter = N, active_nodes 
 
 start(_Event, State) ->
   {next_state, start, State}.
+
+after_start({pool_enabled, Node}, #state{indicator = Ind, node_activity = Activities} = State) ->
+  {next_state, after_start, State#state{indicator = Ind - 1, node_activity = maps:put(Node, true, Activities)}};
+
+after_start({pool_disabled, Node}, #state{indicator = Ind, node_activity = Activities} = State) ->
+  {next_state, after_start, State#state{indicator = Ind + 1, node_activity = maps:put(Node, false, Activities)}};
+
+after_start({pool_connected, Node}, #state{node_counter = N, active_nodes = Nodes, passive_nodes = PassiveNodes, node_activity = Activities} = State) ->
+  {next_state, monitoring, State#state{node_counter = N + 1, active_nodes = [Node | Nodes], passive_nodes = lists:delete(Node, PassiveNodes), node_activity = maps:put(Node, true, Activities)}};
+
+after_start({pool_down, Node}, #state{indicator = Ind, node_counter = N, active_nodes = Nodes, passive_nodes = PassiveNodes, node_activity = Activities} = State) ->
+  NewInd =
+    case maps:get(Node, Activities, true) of
+      true -> Ind;
+      false -> Ind - 1
+    end,
+  {next_state, after_start, State#state{indicator = NewInd, node_counter = N - 1, active_nodes = lists:delete(Node, Nodes), passive_nodes = [Node | PassiveNodes]}};
+
+after_start(_Event, State) ->
+  {next_state, after_start, State}.
 
 pre_stop(timeout, #state{timer = Timer} = State) ->
   Ref = make_ref(),
@@ -162,7 +186,6 @@ pre_stop(high_idle_time, State) ->
   {next_state, monitoring, State};
 
 pre_stop(_Event, State) ->
-  ?E(_Event),
   {next_state, pre_stop, State}.
 
 stop({pool_connected, Node}, #state{node_counter = N, active_nodes = Nodes, passive_nodes = PassiveNodes, node_activity = Activities} = State) ->
@@ -234,6 +257,14 @@ handle_info({stop, _Ref}, pre_stop, #state{timer = Timer} = State) ->
   erlang:send_after(Timer, self(), {stop, Ref}),
   {next_state, stop, State#state{stop_ref = Ref}};
 
+handle_info({start, _Ref}, pre_stop, #state{timer = Timer} = State) ->
+  Ref = make_ref(),
+  erlang:send_after(Timer, self(), {stop, Ref}),
+  {next_state, stop, State#state{stop_ref = Ref}};
+
+handle_info({start, Ref}, after_start, #state{start_ref = Ref} = State) ->
+  {next_state, monitoring, State};
+
 handle_info(_Info, StateName, State) ->
   {next_state, StateName, State}.
 
@@ -257,13 +288,15 @@ pool_disabled_test() ->
   ?assertEqual({next_state, monitoring, State#state{indicator = 12, node_activity = #{node => false}}}, monitoring({pool_disabled, node}, State#state{indicator = 11})),
   ?assertEqual({next_state, start, State#state{indicator = 12, node_activity = #{node => false}, passive_nodes = [node]}}, monitoring({pool_disabled, node}, State#state{indicator = 11, passive_nodes = [node]})),
   ?assertEqual({next_state, monitoring, State#state{indicator = 12, node_activity = #{node => false}}}, stop({pool_disabled, node}, State#state{indicator = 11})),
-  ?assertEqual({next_state, stop, State#state{indicator = 11, node_activity = #{node => false}}}, stop({pool_disabled, node}, State)).
+  ?assertEqual({next_state, stop, State#state{indicator = 11, node_activity = #{node => false}}}, stop({pool_disabled, node}, State)),
+  ?assertEqual({next_state, after_start, State#state{indicator = 11, node_activity = #{node => false}}}, after_start({pool_disabled, node}, State)).
 
 pool_enabled_test() ->
   State = #state{indicator = 10, node_counter = 12, node_activity = #{node => false}},
   ?assertEqual({next_state, pre_stop, State#state{indicator = 9, node_activity = #{node => true}}, 1000}, monitoring({pool_enabled, node}, State)),
   ?assertEqual({next_state, monitoring, State#state{indicator = 9, node_activity = #{node => true}}}, start({pool_enabled, node}, State)),
-  ?assertEqual({next_state, stop, State#state{indicator = 9, node_activity = #{node => true}}}, stop({pool_enabled, node}, State)).
+  ?assertEqual({next_state, stop, State#state{indicator = 9, node_activity = #{node => true}}}, stop({pool_enabled, node}, State)),
+  ?assertEqual({next_state, after_start, State#state{indicator = 9, node_activity = #{node => true}}}, after_start({pool_enabled, node}, State)).
 
 pool_down_test() ->
   State1 = #state{indicator = 10, node_counter = 12, active_nodes = [node], node_activity = #{node => false}},
@@ -271,13 +304,15 @@ pool_down_test() ->
   ?assertEqual({next_state, monitoring, State1#state{indicator = 9, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => false}}}, monitoring({pool_down, node}, State1)),
   ?assertEqual({next_state, monitoring, State1#state{indicator = 10, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => true}}}, monitoring({pool_down, node}, State2)),
   ?assertEqual({next_state, stop, State1#state{indicator = 9, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => false}}}, stop({pool_down, node}, State1)),
-  ?assertEqual({next_state, stop, State2#state{indicator = 10, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => true}}}, stop({pool_down, node}, State2)).
+  ?assertEqual({next_state, stop, State2#state{indicator = 10, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => true}}}, stop({pool_down, node}, State2)),
+  ?assertEqual({next_state, after_start, State2#state{indicator = 10, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => true}}}, after_start({pool_down, node}, State2)).
 
 pool_connected_test() ->
   State = #state{indicator = 10, node_counter = 11, active_nodes = [node], node_activity = #{node => false}},
-  ?assertEqual({next_state, monitoring, State#state{indicator = 10, node_counter = 12, active_nodes = [new_node, node], node_activity = #{new_node => true, node => false}}}, monitoring({pool_connected, new_node}, State)),
+  ?assertEqual({next_state, pre_stop, State#state{indicator = 10, node_counter = 12, active_nodes = [new_node, node], node_activity = #{new_node => true, node => false}}, 1000}, monitoring({pool_connected, new_node}, State)),
   ?assertEqual({next_state, monitoring, State#state{indicator = 10, node_counter = 12, active_nodes = [new_node, node], node_activity = #{new_node => true, node => false}}}, start({pool_connected, new_node}, State)),
   ?assertEqual({next_state, stop, State#state{indicator = 10, node_counter = 12, active_nodes = [new_node, node], node_activity = #{new_node => true, node => false}}}, stop({pool_connected, new_node}, State)),
+  ?assertEqual({next_state, monitoring, State#state{indicator = 10, node_counter = 12, active_nodes = [new_node, node], node_activity = #{new_node => true, node => false}}}, after_start({pool_connected, new_node}, State)).
 
 -endif.
 
