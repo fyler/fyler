@@ -82,7 +82,12 @@ monitoring({pool_down, Node}, #state{indicator = Ind, node_counter = N, active_n
       _ -> if (N < 2) -> monitoring; true -> pre_stop end
     end,
   ?D({monitoring, NextState}),
-  {next_state, NextState, State#state{indicator = NewInd, node_counter = N - 1, active_nodes = lists:delete(Node, Nodes), passive_nodes = [Node | PassiveNodes]}};
+  case NextState of
+    pre_stop ->
+      {next_state, NextState, State#state{indicator = NewInd, node_counter = N - 1, active_nodes = lists:delete(Node, Nodes), passive_nodes = [Node | PassiveNodes]}, 1000};
+    _ ->
+      {next_state, NextState, State#state{indicator = NewInd, node_counter = N - 1, active_nodes = lists:delete(Node, Nodes), passive_nodes = [Node | PassiveNodes]}}
+  end;
 
 monitoring({pool_enabled, Node}, #state{indicator = Ind, active_nodes = [Node], node_activity = Activities} = State) ->
   {next_state, monitoring, State#state{indicator = Ind - 1, node_activity = maps:put(Node, true, Activities)}};
