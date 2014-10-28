@@ -283,6 +283,7 @@ handle_info({'DOWN', Ref, process, _Pid, killed}, #state{enabled = Enabled, acti
   NewActive = case lists:keyfind(Ref, #task.worker, Active) of
                 #task{} = Task ->
                   cleanup_task_files(Task),
+                  fyler_event:task_aborted(Task),
                   lists:keydelete(Ref, #task.worker, Active);
                 _ -> Active
               end,
