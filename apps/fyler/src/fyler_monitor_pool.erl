@@ -265,7 +265,7 @@ handle_info(start, start_monitor, #state{category = Category, instances = Instan
   NodeCounter =
     fun
       (#pool{node = Node, enabled = true, category = C}, {Nodes, Ind}) when C == Category -> {[Node, Nodes], Ind};
-      (#pool{node = Node, enabled = false, category = C}, {Nodes, Ind}) when C == Category -> {[Node, Nodes], Ind};
+      (#pool{node = Node, enabled = false, category = C}, {Nodes, Ind}) when C == Category -> {[Node, Nodes], Ind + 1};
       (_, {Nodes, Ind}) -> {Nodes, Ind}
     end,
   {ActiveNodes, Indicator} = ets:foldl(NodeCounter, {[], 0}, ?T_POOLS),
@@ -335,8 +335,8 @@ pool_enabled_test() ->
 pool_down_test() ->
   State1 = #state{indicator = 10, node_counter = 12, active_nodes = [node], node_activity = #{node => false}},
   State2 = #state{indicator = 10, node_counter = 12, active_nodes = [node], node_activity = #{node => true}},
-  ?assertEqual({next_state, monitoring, State1#state{indicator = 9, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => false}}}, monitoring({pool_down, node}, State1)),
-  ?assertEqual({next_state, monitoring, State1#state{indicator = 10, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => true}}}, monitoring({pool_down, node}, State2)),
+  ?assertEqual({next_state, pre_stop, State1#state{indicator = 9, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => false}}, 1000}, monitoring({pool_down, node}, State1)),
+  ?assertEqual({next_state, pre_stop, State1#state{indicator = 10, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => true}}, 1000}, monitoring({pool_down, node}, State2)),
   ?assertEqual({next_state, stop, State1#state{indicator = 9, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => false}}}, stop({pool_down, node}, State1)),
   ?assertEqual({next_state, stop, State2#state{indicator = 10, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => true}}}, stop({pool_down, node}, State2)),
   ?assertEqual({next_state, after_start, State2#state{indicator = 10, node_counter = 11, active_nodes = [], passive_nodes = [node], node_activity = #{node => true}}}, after_start({pool_down, node}, State2)).
