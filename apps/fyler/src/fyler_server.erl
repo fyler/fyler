@@ -83,6 +83,7 @@ init(_Args) ->
   Priorities = ?Config(priorities, #{}),
 
   Instances = ?Config(instances, #{}),
+  ?D({instances, Instances}),
   maps:map(fun(Category, Opts) -> fyler_sup:start_pool_monitor(Category, Opts) end, Instances),
 
   ?I({server_start, AwsDir, Buckets}),
