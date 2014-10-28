@@ -165,7 +165,7 @@ pre_stop(timeout, #state{timer = Timer} = State) ->
   ?D({pre_stop, stop}),
   Ref = make_ref(),
   erlang:send_after(Timer, self(), {stop, Ref}),
-  {next_state, stop, #state{stop_ref = Ref} = State};
+  {next_state, stop, State#state{stop_ref = Ref}};
 
 pre_stop({pool_connected, Node}, #state{node_counter = N, active_nodes = Nodes, passive_nodes = PassiveNodes, timer = Timer, node_activity = Activities} = State) ->
   ?D({pre_stop, stop}),
