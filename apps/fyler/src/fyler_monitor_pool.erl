@@ -103,7 +103,7 @@ start(high_idle_time, #state{passive_nodes = [Node |_], node_to_id = NodeToId, t
   ?D({start_new_instance, Node}),
   aws_cli:start_instance(maps:get(Node, NodeToId)),
   Ref = make_ref(),
-  erlang:send_after(Timer, self(), {stop, Ref}),
+  erlang:send_after(Timer, self(), {start, Ref}),
   {next_state, after_start, State#state{start_ref = Ref}};
 
 start({pool_enabled, Node}, #state{indicator = Ind, node_activity = Activities} = State) ->
