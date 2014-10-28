@@ -6,7 +6,7 @@
 -behaviour(gen_fsm).
 
 -define(Regex, "\"PrivateIpAddress\": \"(?<ip>[^\"]*)\"").
--define(Node(Category, Ip), list_to_atom(lists:flatten(io_lib:format("fyler_pool_~p@~s", [Category, Ip])))).
+-define(Node(Category, Ip), list_to_atom(lists:flatten(io_lib:format("fyler_~p_pool@~s", [Category, Ip])))).
 
 %% API
 -export([start_link/2]).
@@ -79,7 +79,7 @@ monitoring({pool_down, Node}, #state{indicator = Ind, node_counter = N, active_n
   NextState =
     case NewInd + 1 of
       N -> start;
-      _ -> monitoring
+      _ -> pre_stop
     end,
   ?D({monitoring, NextState}),
   {next_state, NextState, State#state{indicator = NewInd, node_counter = N - 1, active_nodes = lists:delete(Node, Nodes), passive_nodes = [Node | PassiveNodes]}};
