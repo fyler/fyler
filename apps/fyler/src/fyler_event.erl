@@ -17,7 +17,7 @@
 %% gen_event callbacks
 -export([init/1, handle_call/2, handle_event/2, handle_info/2, terminate/2, code_change/3]).
 
--export([task_completed/2, task_aborted/1, task_failed/2, pool_enabled/2, pool_disabled/2, pool_connected/2, pool_down/2, high_idle_time/1]).
+-export([task_completed/2, task_aborted/1, task_failed/2, pool_enabled/2, pool_disabled/2, pool_enabled_smooth/2, pool_disabled_smooth/2, pool_connected/2, pool_down/2, high_idle_time/1]).
 
 start_link() ->
   ?D(start_fevent),
@@ -99,6 +99,18 @@ pool_enabled(Node, Category) ->
 
 pool_disabled(Node, Category) ->
   gen_event:notify({global, ?MODULE}, #fevent{node = Node, type = pool_disabled, category = Category}).
+
+%% @doc
+%% @end
+
+pool_enabled_smooth(Node, Category) ->
+  gen_event:notify({global, ?MODULE}, #fevent{node = Node, type = pool_enabled_smooth, category = Category}).
+
+%% @doc
+%% @end
+
+pool_disabled_smooth(Node, Category) ->
+  gen_event:notify({global, ?MODULE}, #fevent{node = Node, type = pool_disabled_smooth, category = Category}).
 
 %% @doc
 %% @end
