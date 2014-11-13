@@ -46,7 +46,7 @@ create_db(Host,User,Pass,DB) ->
     task_type varchar(20),
     error_msg text,
     url text,
-    options json DEFAULT '',
+    options text DEFAULT '',
     priority varchar(20),
     ts timestamp DEFAULT NOW()
   );"),
