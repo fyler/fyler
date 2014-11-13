@@ -97,14 +97,14 @@ process_post(Req, State) ->
               Resp_ = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req),
               {true, cowboy_req:set_resp_body(jiffy:encode({[{id, Id}]}), Resp_), State};
             _ ->
-              {halt, cowboy_req:reply(403,Req), State}
+              {stop, cowboy_req:reply(403,Req), State}
           end;
         false -> ?D(<<"wrong post data">>),
-          {halt, cowboy_req:reply(403,Req), State}
+          {stop, cowboy_req:reply(403,Req), State}
       end;
     Else -> 
       ?D({<<"no data">>,Else}),
-      {halt, cowboy_req:reply(403,Req), State}
+      {stop, cowboy_req:reply(403,Req), State}
   end.
 
 delete_resource(Req, #state{id = Id, status = queued} = State) ->
