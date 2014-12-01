@@ -31,6 +31,7 @@ cleanup_(_) ->
   ulitos_file:recursively_del_dir(?PATH("tmp")),
   ulitos_file:recursively_del_dir(?PATH("thumbs")),
   ulitos_file:recursively_del_dir(?PATH("swfs")),
+  ulitos_file:recursively_del_dir(?PATH("18")),
   file:delete(?PATH("10.pdf")),
   file:delete(?PATH("13.pdf")),
   file:delete(?PATH("2.pdf")),
@@ -73,6 +74,13 @@ doc_pdftk_test_()->
   ?setup(
     [ 
       {timeout, ?TIMEOUT, [pdf_split_t_()]}  
+    ]
+  ).
+
+doc_unpack_test_()->
+  ?setup(
+    [ 
+      {timeout, ?TIMEOUT, [zip_unpack_t_()]}  
     ]
   ).
 
@@ -157,4 +165,12 @@ pdf_to_swf_thumbs_t_() ->
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(2, length(Stat#job_stats.result_path))
+  end. 
+
+zip_unpack_t_() ->
+  fun() ->
+    Res = unpack_html:run(#file{tmp_path = ?PATH("18.zip"), name = "18", dir = ?PATH("")}),
+    ?assertMatch({ok,#job_stats{}}, Res),
+    {_, Stat} = Res,
+    ?assertEqual(1, length(Stat#job_stats.result_path))
   end. 

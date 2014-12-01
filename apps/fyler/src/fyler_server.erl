@@ -972,6 +972,9 @@ pdf_to_thumbs_test() ->
 split_pdf_test() ->
   ?assertEqual(document, split_pdf:category()).
 
+unpack_html_test() ->
+  ?assertEqual(document, unpack_html:category()).
+
 recording_to_hls_test() ->
   ?assertEqual(video, recording_to_hls:category()).
 
