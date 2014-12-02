@@ -18,7 +18,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   Start = ulitos:timestamp(),
   ?D({"command",?COMMAND(Path,Dir)}),
   Data = os:cmd(?COMMAND(Path,Dir)),
-  FileName = filename:join(Name,"index.html"),
+  FileName = "index.html",
   HTML = filename:join(Dir,FileName),
   case  filelib:is_file(HTML) of
     true -> 

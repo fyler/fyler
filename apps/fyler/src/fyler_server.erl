@@ -844,7 +844,8 @@ add_pool_t_(_) ->
 decriment_tasks_num_t_(_) ->
   ets:insert(?T_POOLS, #pool{active_tasks_num = 12, node = test}),
   [
-    ?_assertEqual(11, decriment_tasks_num(test))
+    ?_assertEqual(11, decriment_tasks_num(test)),
+    ?_assertMatch([#pool{active_tasks_num = 11}], ets:lookup(?T_POOLS, test))
   ].
 
 choose_pool_t_(_) ->
@@ -879,11 +880,6 @@ tasks_test_() ->
       fun add_task_t_/1
       )
     },
-    {"task finished",
-    ?setup(
-      fun task_finished_t_/1
-      )
-    },
     {
       "run task",
       ?setup(
@@ -909,13 +905,6 @@ add_task_t_(_) ->
   [
     ?_assertEqual({ok, 1},Res),
     ?_assertEqual(1, fyler_queue:len(maps:get(test,gen_server:call(fyler_server,tasks))))
-  ].
-
-task_finished_t_(_) ->
-  ets:insert(?T_POOLS, #pool{active_tasks_num = 1, total_tasks = 2, node = testf, category = docs, enabled = true}),
-  gen_server:cast(fyler_server, {task_finished, testf}),
-  [
-    ?_assertMatch([#pool{active_tasks_num = 0}], ets:lookup(?T_POOLS, testf))
   ].
 
 run_task_t_(_) ->
