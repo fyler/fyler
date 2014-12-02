@@ -36,11 +36,11 @@ handle_event(#fevent{type = pool_down, node = Node, category = Category}, #state
   gen_fsm:send_event(Monitor, {pool_down, Node}),
   {ok, State};
 
-handle_event(#fevent{type = pool_enable, node = Node, category = Category}, #state{category = Category, monitor = Monitor} = State) ->
+handle_event(#fevent{type = pool_enable_smooth, node = Node, category = Category}, #state{category = Category, monitor = Monitor} = State) ->
   gen_fsm:send_event(Monitor, {pool_enable, Node}),
   {ok, State};
 
-handle_event(#fevent{type = pool_disable, node = Node, category = Category}, #state{category = Category, monitor = Monitor} = State) ->
+handle_event(#fevent{type = pool_disable_smooth, node = Node, category = Category}, #state{category = Category, monitor = Monitor} = State) ->
   gen_fsm:send_event(Monitor, {pool_disable, Node}),
   {ok, State};
 

@@ -12,8 +12,8 @@ info(Path) ->
   Command = ?CMD(Path),
 
   true = filelib:is_file(Path),
-
-  try jiffy:decode(os:cmd(Command)) of
+  Probe = os:cmd(Command),
+  try jiffy:decode(Probe) of
     {Info} ->
       Streams = proplists:get_value(<<"streams">>,Info,[]),
       if
@@ -26,6 +26,7 @@ info(Path) ->
           false
       end
   catch
+    throw:{error, {Ind, invalid_string}} -> ?E({error, {string:substr(Probe, Ind, 1), invalid_string}});
     _:Error_ -> ?E(Error_),
               #video_info{audio_codec = default, video_codec = default}
   end.

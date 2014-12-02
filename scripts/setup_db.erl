@@ -45,10 +45,10 @@ create_db(Host,User,Pass,DB) ->
     result_path text,
     task_type varchar(20),
     error_msg text,
+    ts timestamp DEFAULT NOW(),
     url text,
-    options json DEFAULT '',
-    priority varchar(20),
-    ts timestamp DEFAULT NOW()
+    options text DEFAULT '',
+    priority varchar(20)
   );"),
   io:format("Table 'tasks' created.~n"),
   pgsql:close(PG).

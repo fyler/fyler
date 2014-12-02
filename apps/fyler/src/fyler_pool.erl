@@ -59,6 +59,9 @@ init(_Args) ->
   ulitos_app:ensure_loaded(?Handlers),
 
   Category = ?Config(category,undefined),
+
+  fyler_monitor_smooth ! {category, Category},
+
   case Category of
     video -> media:start();
     _ -> ok
@@ -356,10 +359,12 @@ cleanup_task_files(#task{file = #file{dir = Dir}})->
   ulitos_file:recursively_del_dir(Dir).
 
 pool_enabled(#state{category = Category}) ->
-  fyler_event:pool_enabled(node(), Category).
+  fyler_event:pool_enabled(node(), Category),
+  fyler_monitor_smooth ! enabled.
 
 pool_disabled(#state{category = Category}) ->
-  fyler_event:pool_disabled(node(), Category).
+  fyler_event:pool_disabled(node(), Category),
+  fyler_monitor_smooth ! disabled.
 
 
 -ifdef(TEST).

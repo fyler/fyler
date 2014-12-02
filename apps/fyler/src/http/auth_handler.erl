@@ -25,12 +25,12 @@ process_post(Req, State) ->
         [Login,Pass] -> case fyler_server:authorize(Login,Pass) of
                           {ok,Token} -> ?D({authorized,Token}),
                                         Resp = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req),
-                                        {halt, cowboy_req:reply(200, [], jiffy:encode({[{token, list_to_binary(Token)}]}), Resp), State};
-                          false -> {halt, cowboy_req:reply(401, Req), State}
+                                        {stop, cowboy_req:reply(200, [], jiffy:encode({[{token, list_to_binary(Token)}]}), Resp), State};
+                          false -> {stop, cowboy_req:reply(401, Req), State}
                         end;
-        false -> {halt, cowboy_req:reply(401, Req), State}
+        false -> {stop, cowboy_req:reply(401, Req), State}
       end;
-    _ -> {halt, cowboy_req:reply(401, Req), State}
+    _ -> {stop, cowboy_req:reply(401, Req), State}
   end.
 
 validate_post_data(Data) ->
