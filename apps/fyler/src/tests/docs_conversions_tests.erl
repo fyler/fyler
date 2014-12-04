@@ -32,7 +32,7 @@ cleanup_(_) ->
   ulitos_file:recursively_del_dir(?PATH("thumbs")),
   ulitos_file:recursively_del_dir(?PATH("swfs")),
   file:delete(?PATH("10.pdf")),
-  file:delete(?PATH("18.html")),
+  file:delete(?PATH("index.html")),
   file:delete(?PATH("13.pdf")),
   file:delete(?PATH("2.pdf")),
   file:delete(?PATH("3.pdf")),
@@ -81,6 +81,13 @@ doc_unpack_test_()->
   ?setup(
     [ 
       {timeout, ?TIMEOUT, [zip_unpack_t_()]}  
+    ]
+  ).
+
+doc_unrar_test_()->
+  ?setup(
+    [ 
+      {timeout, ?TIMEOUT, [rar_unpack_t_()]}  
     ]
   ).
 
@@ -170,6 +177,14 @@ pdf_to_swf_thumbs_t_() ->
 zip_unpack_t_() ->
   fun() ->
     Res = unpack_html:run(#file{tmp_path = ?PATH("18.zip"), name = "18", dir = ?PATH("")}),
+    ?assertMatch({ok,#job_stats{}}, Res),
+    {_, Stat} = Res,
+    ?assertEqual(1, length(Stat#job_stats.result_path))
+  end. 
+
+rar_unpack_t_() ->
+  fun() ->
+    Res = unpack_html:run(#file{tmp_path = ?PATH("19.rar"), name = "19", dir = ?PATH("")}),
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(1, length(Stat#job_stats.result_path))
