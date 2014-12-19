@@ -1,5 +1,5 @@
 {role, server}.
-{server_name, fyler@domain.com}.
+{server_name, 'fyler@127.0.0.1'}.
 {storage_dir,"ff/"}.
 {http_port,8008}.
 {aws_s3_bucket, ["tbconvert"]}.

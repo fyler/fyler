@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <meta http-equiv="Content-Type" content="text/html; Charset=utf-8"/>
+    <link rel="stylesheet" href="http://code.jquery.com/ui/1.9.2/themes/base/jquery-ui.css"/>
+    <link type="text/css" href="js/jquery.jscrollpane/jquery.jscrollpane.css" rel="stylesheet"/>
+    <link type="text/css" href="js/fancybox/jquery.fancybox.css" rel="stylesheet"/>
+    <link type="text/css" href="css/style.css" rel="stylesheet"/>
+    <link type="text/css" href="css/course-editor.css" rel="stylesheet"/>
+    <link type="text/css" href="css/custom-slides.css" rel="stylesheet"/>
+    <link type="text/css" href="css/excel.css" rel="stylesheet"/>
+    <!--[if IE 8]>
+    <link type="text/css" href="css/course-editor-ie.css" rel="stylesheet"/>
+    <![endif]-->
+    <script type='text/javascript' src="http://code.jquery.com/jquery-1.8.3.js"></script>
+    <script src="http://code.jquery.com/ui/1.9.2/jquery-ui.js"></script>
+    <script src='js/jquery.jscrollpane.min.js'></script>
+    <script src='js/jquery.mousewheel-3.0.6.pack.js'></script>
+    <script src='js/fancybox/jquery.fancybox.pack.js'></script>
+    <script type='text/javascript' src="js/course-edit-fn.js"></script>
+    <script type='text/javascript' src="js/jquery.maskedinput.js"></script>
+    <script type='text/javascript' src="js/course-1c.js"></script>
+    <title>Index</title>
+</head>
+<body>
+
+
+<div class='head'>
+    <a href='#'><img src='images/logotb.png' width="153" height="43" alt='' class='logo'/></a>
+    <span class='slogan'>Кассовая дисциплина</span><!--slogan-->
+    <div class="right">
+        <ul class="buttons-top">
+            <!--<li><a href="#" class="btn mail"></a></li>-->
+            <!--<li><a href="#" class="btn question"></a></li>-->
+            <li><a href="#" class="btn exit"></a></li>
+        </ul>
+    </div>
+
+</div>
+<!--head-->
+
+
+<div id="work-area" class="noswitch">
+    <div id="loader">
+        <div class="progress">
+            <div class="pbaranim"></div>
+        </div>
+    </div>
+    <div id="next"></div>
+    <div id="prev"></div>
+    <div id="pages-panel">
+        <div id="hide-pages" class="active"></div>
+
+
+        <div class="scroll">
+            <ul id="listing" class="see">
+                <li class="active begin-view" rel="images/big_page.jpg">
+                    <div class="num">1</div>
+                    <div class="page">
+                        <img src="images/cover-course.jpg" alt="">
+                    </div>
+
+                </li>
+
+                <li class="contents-view">
+                    <div class="num">2</div>
+                    <div class="page">
+                        <img src="images/content-course.jpg" alt="">
+                    </div>
+                </li>
+
+
+                <li rel="#slide-6" class="custom-view">
+                    <div class="num">3</div>
+                    <div class="page">
+                        <img src="images/slide-5-1.jpg" alt="">
+                    </div>
+                </li>
+
+
+                <li rel="#slide-5" class="custom-view">
+                    <div class="num">4</div>
+                    <div class="page">
+                        <img src="images/slide-5.jpg" alt="">
+                    </div>
+                </li>
+
+
+                <li rel="#slide-4" class="custom-view">
+                    <div class="num">5</div>
+                    <div class="page">
+                        <img src="images/slide-4-1.jpg" alt="">
+                    </div>
+                </li>
+
+
+                <li class="video-view">
+                    <div class="num">6</div>
+                    <div class="page">
+                        <img src="images/video-img.jpg" alt="">
+
+                    </div>
+                    <div class="attachments">
+                        <div class="attach audio"></div>
+                    </div>
+                </li>
+
+                <li class="test-view">
+                    <div class="num">7</div>
+                    <div class="page">
+                        <img src="images/test_preview.jpg" width="119" height="83" alt="">
+
+                    </div>
+
+                </li>
+
+                <li class="end-view">
+                    <div class="num">8</div>
+                    <div class="page">
+                        <img src="images/end-course.jpg" alt="">
+
+                    </div>
+                </li>
+
+
+            </ul>
+        </div>
+
+
+    </div>
+
+    <div id="toolbar">
+
+        <div class="attachments see">
+
+            <!--<div class="play"><i></i></div>-->
+
+            <div class="docs doc tooltip ico" alt="asidlyf asldfh alsjdf">
+                <ul>
+                    <li><a class="view-doc" href="#">Просмотреть</a></li>
+                    <li><a class="down-doc" href="#">Скачать</a></li>
+                </ul>
+                <span></span>
+
+            </div>
+
+            <div class="docs pdf tooltip ico" alt="asidlyf asldfh alsjdf">
+                <ul>
+                    <li><a class="view-doc" href="#">Просмотреть</a></li>
+                    <li><a class="down-doc" href="#">Скачать</a></li>
+                </ul>
+                <span></span>
+
+            </div>
+
+            <div class="docs ppt tooltip ico">
+                <ul>
+                    <li><a class="view-doc" href="#">Просмотреть</a></li>
+                    <li><a class="down-doc" href="#">Скачать</a></li>
+                </ul>
+                <span></span>
+
+            </div>
+
+            <div class="docs img tooltip ico">
+                <ul>
+                    <li><a class="view-doc" href="#">Просмотреть</a></li>
+                    <li><a class="down-doc" href="#">Скачать</a></li>
+                </ul>
+                <span></span>
+
+            </div>
+
+        </div>
+
+        <div class="bottom">
+            <div class="zoomer">
+                <a id="zoom-add" href="#"></a>
+
+                <div id="zoom"></div>
+                <a id="zoom-minus" href="#"></a>
+            </div>
+
+            <div class="buttons">
+                <a href="#" class="width"></a>
+                <a href="#" class="wide"></a>
+            </div>
+
+            <a class="bugger" href="#"></a>
+        </div>
+
+    </div>
+    <div id="wrapper-page">
+        <div class="scroll">
+            <div id="page" class="begin-view">
+                <div class="corner"></div>
+                <div class="begin-page">
+                    <div class="excel-cover incity" style="background: none;">
+                        <div class="name">Выплата заработной платы:</div>
+                        <div class="author">принципы работы с 1С</div>
+                        <div class="clear"></div>
+                        <div class="time">период завершения: <strong>12.01.13 &ndash; 24.03.12</strong></div>
+                    </div>
+
+                </div>
+
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+<div id="template-delete" style="display: none;">
+    <div class="overlay">
+        <div class="close"></div>
+        Слайд удален
+        <a href="#">Восстановить</a>
+    </div>
+</div>
+
+
+<div id="template-page" style="display: none;">
+    <img src="" alt="">
+</div>
+
+
+<div id="template-begin" style="display: none;">
+    <div class="corner"></div>
+    <div class="begin-page">
+
+
+        <div class="excel-cover incity" style="background: none;">
+            <div class="name">Выплата заработной платы:</div>
+            <div class="author">принципы работы с 1С</div>
+            <div class="clear"></div>
+            <div class="time">период завершения: <strong>12.01.13 &ndash; 24.03.12</strong></div>
+        </div>
+
+
+    </div>
+</div>
+
+<div id="template-end" style="display: none;">
+    <div class="end-page">
+        <div class="message">вы завершили курс</div>
+        <div class="clr"></div>
+        <div class="name">Выплата заработной платы, система 1С</div>
+        <div class="author">Станислав Михайлов</div>
+        <div class="time">дата завершения: <strong>27 сентября</strong></div>
+        <div class="clr"></div>
+        <div class="bottom">
+            Затрачено времени: <strong>00:23:45</strong> <span>|</span> <a href="#">посмотреть результаты</a>
+        </div>
+    </div>
+</div>
+
+
+<div id="template-contents" style="display: none;">
+    <div class="head-contents">
+        Оглавление
+    </div>
+    <div class="full-contents">
+        <ul>
+            <li><a href="#"><span>2</span>Передача и хранение комплектов ключей и печати (для администраторов/
+                менеджеров)</a></li>
+            <li><a href="#"><span>9</span>Изъятие наличных денежных средств из оперативной кассы</a></li>
+            <li><a href="#"><span>9</span>Временная передача оперативной кассы</a></li>
+            <li><a href="#"><span>14</span>Инструкции для продавца-кассира магазина относительно клубной программы</a>
+            </li>
+            <li><a href="#"><span>21</span>Открытие кассовой смены</a></li>
+            <li><a href="#"><span>23</span>Контроль со стороны менеджера магазина</a></li>
+        </ul>
+    </div>
+</div>
+
+<div id="template-custom" style="display: none;">
+    <div class="custom-container"></div>
+</div>
+
+<div id="slide-4" minsize='800x550' style="display: none;">
+
+    <div class="custom-page">
+        <div class="head-page">
+            <div class="num">4</div>
+            Тема 1. Основы работы в 1С
+        </div>
+        <div class="custom-content">
+            <div class="column-47 lfl">
+                <p>При работе с программой 1С-рарус обязательно учитывайте ваши корпоративные настройки. А так же вам
+                    всегда необходимо четко запомнить последовательность действий при внесении информации в программу.
+                    Программа требует очень внимательного отношения к ней, в случае если вы не уверены как провести ту
+                    или иную операцию мы вам рекомендует обратиться, либо к вашему коллеги или связаться напрямую с
+                    командой 1С-Рарус.</p>
+                <img src="images/1cslide.jpg" alt=""/>
+
+                <p>В этом курсе мы рассматриваем основные сценарии работы с программой 1С, которая может быть полезна для огромного количеств задач. </p>
+
+            </div>
+            <div class="column-47 rfl">
+                <p><strong>«1С:Розница 8. Магазин одежды и обуви»</strong></p>
+                <ul>
+                    <li>Заказ товаров поставщику</li>
+                    <li>Поступление товаров от контрагента на склад магазина</li>
+                    <li>Перемещение товаров между складами магазина</li>
+                    <li>Передача товаров между организациями</li>
+                    <li>Возврат товаров поставщику</li>
+                    <li>Возврат товаров от покупателей</li>
+                    <li>Продажа комплектов товаров</li>
+                    <li>Пересчет товаров (инвентаризация)</li>
+                    <li>Реализация товаров и услуг</li>
+                    <li>Заказ товаров от покупателя</li>
+                    <li>Поступление денежных средств от покупателей</li>
+                    <li>Перемещение денежных средств между кассами магазина</li>
+                    <li>Оформление чеков продажи и сводного отчета по контрольно-кассовой машине</li>
+                    <li>Работа с эквайринговыми системами и с банковскими кредитами</li>
+                </ul>
+
+
+            </div>
+
+
+        </div>
+    </div>
+
+</div>
+
+
+<div id="slide-5" minsize='800x550' style="display: none;">
+
+    <div class="custom-page">
+        <div class="head-page">
+            <div class="num">3</div>
+            Тема 1. Дизайн пользовательского интерфейса системы 1С Рарус.
+        </div>
+        <div class="custom-content">
+            <div class="interactive center" style="width: 680px;">
+                <img src="images/interactive-slide-1c2.jpg" alt=""/>
+
+                <div class="hover-area" style="height: 27px; width: 63px; left: 40px; top: 74px;">
+                    <div class="info">
+                        <p><strong>Номер расходного кассового ордера.</strong> По ним вы можете упорядочивать информацию
+                            чтобы быстрее находить интересующий вас документ.
+                    </div>
+                </div>
+                <div class="hover-area" style="height: 27px; width: 90px; left: 108px; top:74px;">
+                    <div class="info">
+                        <p>Дата, когда данный ордер был проведен</p>
+                    </div>
+                </div>
+                <div class="hover-area" style="height: 27px; width: 57px; left: 202px; top:74px;">
+                    <div class="info">
+                        <p>Вид операции к которой относится данный расходный ордер. В данном случае он отнесен на прочие
+                            расходы.
+                        </p>
+
+                    </div>
+                </div>
+                <div class="hover-area" style="height: 27px; width: 79px; left: 263px; top:74px;">
+                    <div class="info">
+                        <p>Вы так же можете задать информацию о подрядчиках, если таковые были</p>
+                    </div>
+                </div>
+                <div class="hover-area" style="height: 27px; width: 73px; left: 346px; top:74px;">
+                    <div class="info">
+                        <p>Обязательно указывайте название организации при заведении ордера.
+                        </p>
+                    </div>
+                </div>
+                <div class="hover-area" style="height: 27px; width: 79px; left: 424px; top:74px;">
+                    <div class="info">
+                        <p><strong>Сумма документа задается вам при добавлении ордера, как вы это делали в предыдущем
+                            упражнении</strong>
+                        </p>
+                    </div>
+                </div>
+                <div class="hover-area" style="height: 27px; width: 118px; left: 507px; top:74px;">
+                    <div class="info">
+                        <p><strong>Статья ДДС проставляется автоматически</strong>
+                        </p>
+                    </div>
+                </div>
+                <div class="hover-area" style="height: 25px; width: 25px; left: 60px; top:18px;">
+                    <div class="info">
+                        <p><strong>Кнопка добавить необходима вам чтобы добавить нужный вам расходный кассовый
+                            ордер.</strong>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="interact-arr">
+                <i></i>
+                Наведите курсор мыши
+                на выделенные области окна,
+                чтобы ознакомиться
+                с некоторыми элементами
+                интерфейса и их назначением
+            </div>
+
+            <p>Основные интерфейсы в системе 1С-Рарус сделаны таким образом, чтобы максимально упростить процесс работы
+                для конечного клиента.</p>
+
+            <p>Вам стоит внимательно изучить основные обозначения, используемые в верхней ленте программы.</p>
+
+            <p>Основные элементы, - добавить, действия – находятся в правом верхнем углу, в зоне которая используется
+                чаще всего. При нажатии кнопки F1 всегда сможете обратиться к справочнику, чтобы найти ответы на любой
+                свой вопрос по системе.</p>
+
+
+        </div>
+    </div>
+    <script type="text/javascript">initSlide();</script>
+
+</div>
+
+<div id="slide-6" minsize='800x545' style="display: none;">
+
+<div class="custom-page">
+<div class="head-page">
+    <div class="num">3</div>
+    Тема 1. Выплата заработной платы
+</div>
+<div class="custom-content">
+<div class="interactive center excel" style="width: 721px; height: 429px">
+<img src="images/1c2-step-1.png" width="721" height="429" alt=""/>
+
+<div id="sl-2" class="invisibles i-step-2" style="left:0; top:0">
+    <img src="images/1c2-step-2.png" width="721" height="429" alt=""/>
+</div>
+
+<div id="sl-3" class="invisibles i-step-3" style="left:0; top:0">
+    <img src="images/1c2-step-3.png" width="721" height="429" alt=""/>
+</div>
+
+<div id="sl-4" class="invisibles i-step-4" style="left:0; top:0">
+    <img src="images/1c2-step-4.png" width="721" height="429" alt=""/>
+</div>
+
+<div id="sl-5" class="invisibles  i-step-5" style="left:0; top:0">
+    <img src="images/1c2-step-5.png" width="721" height="429" alt=""/>
+</div>
+
+<div id="sl-6" class="invisibles i-step-6" style="left:0; top:0">
+    <img src="images/1c2-step-6.png" width="721" height="429" alt=""/>
+</div>
+
+<div id="sl-8" class="invisibles i-step-7" style="left:0; top:0">
+    <img src="images/1c2-step-7.png" width="721" height="429" alt=""/>
+</div>
+
+<div id="sl-9" class="invisibles i-step-8" style="left:0; top:0">
+    <img src="images/1c2-step-8.png" width="721" height="429" alt=""/>
+</div>
+
+<div id="sl-10" class="invisibles i-step-9" style="left:0; top:0">
+    <img src="images/1c2-step-9.png" width="721" height="429" alt=""/>
+</div>
+
+<div id="sl-11" class="invisibles i-step-10" style="left:0; top:0">
+    <img src="images/1c2-step-10.png" width="721" height="429" alt=""/>
+</div>
+
+<div id="sl-12" class="invisibles i-step-11" style="left:0; top:0">
+    <img src="images/1c2-step-11.png" width="721" height="429" alt=""/>
+</div>
+
+<!--слайд 1-->
+
+<div rel="#invis-1" delay="2000" class="hover-area nopop red-circle square e-step-1"
+     style="height: 30px; width: 74px; left: 150px; top: 20px;">
+    <div class="red">
+        <div class="border-red"></div>
+    </div>
+</div>
+
+<div id="invis-1" onclick="setStep(2);" rel="Открыть документы" class="hover-invisible"
+     style="height: 40px; width: 94px; left: 140px; top: 25px;">
+    <img src="images/spacer.png" width="94" height="40" alt=""/>
+</div>
+
+
+<!--<div rel="#invis-first" delay="500" class="hover-area nopop red-circle e-step-1" style="height: 30px; width: 30px; left:114px; top:-1px;">-->
+<!--<div class="red"><div class="border-red"></div></div>-->
+<!--</div>-->
+
+<!--<div id="invis-first" onclick="setStep(2);" rel="Настройка панели быстрого доступа" class="hover-invisible" style="padding-left:20px; width: 25px; height: 32px; left:101px; top:0; ">-->
+<!--<img src="images/excel-first-step-invis.png" alt=""/>-->
+<!--</div>-->
+
+<!--<div  delay="2500" style="top:147px; width: 250px; left: 33px;" class="interactive-popup e-step-1">-->
+<!--<p>Перед Вами раскрыто окно <strong>Книга 3</strong> в приложении Microsoft Excel-->
+<!--2010 на вкладке <em><strong>Главная</strong></em>. Добавьте новый элемент <strong>Отправить-->
+<!--по электронной почте</strong> на панель быстрого доступа.</p>-->
+<!--</div>-->
+
+<div delay="0" style="top:147px; width: 230px; left: 373px;" class="interactive-popup e-step-1">
+    <p>Попробуйте выполнить ряд основных действий в программе 1С-рарус. Следуйте подсказкам.</p>
+</div>
+
+<div delay="1500" style="top:297px; width: 280px; left: 323px;" class="interact-arr e-step-1"><i></i>
+    В главном меню выбрать <strong>«Документы»</strong>
+</div>
+
+<!-- -----------------слайд 2------------------- -->
+
+<div delay="1000" style="left:370px; width: 300px; top: 110px;" class="interactive-popup e-step-2">
+    <p>Перед вам раскрылся список основных действий, которые вы можете совершить во вкладке <strong>Документы</strong>.
+        Вам необходимо навести мышкой на пункт <strong>Финансовая документация</strong>. </p>
+</div>
+
+<div delay="2000" style="top:260px; width: 280px; left: 340px;" class="interact-arr e-step-2"><i></i>
+    Выбираем <strong>«Финансовая документация»</strong> так как РКО является финансовым документом который в последствии
+    отправляется в бухгалтерию.
+</div>
+
+<div rel="#invis-2" delay="2500" bg="#sl-2" class="hover-area nopop red-circle square e-step-2"
+     style="height: 26px; width: 180px; left:164px; top:40px;">
+    <div class="red">
+        <div class="border-red"></div>
+    </div>
+</div>
+
+<div id="invis-2" onclick="setStep(3);" rel="Финансовая документация" class="hover-invisible"
+     style="height: 26px; width: 180px; left:164px; top:40px;">
+    <img src="images/spacer.png" width="180" height="26" alt=""/>
+</div>
+
+
+<!-- -----------------слайд 3------------------- -->
+
+
+<div delay="1000" style="left:140px; width: 420px; top: 210px;" class="interactive-popup e-step-3">
+    <p style="margin-bottom: 0">Повторите действие и на этот раз вам необходимо выбрать нужную рубрику из составляющих
+        раздела <strong>Финансовая документация</strong>.</p>
+</div>
+
+<div delay="2000" style="top: 320px; width: 330px; left: 156px;" class="interact-arr e-step-3"><i></i>
+    Далее выбираем <strong>«Расходно кассовый ордер»</strong> (РКО)
+</div>
+
+
+<div rel="#invis-3" delay="2500" bg="#sl-3" class="hover-area nopop red-circle square e-step-3"
+     style="height: 26px; width: 180px; left:342px; top:81px;">
+    <div class="red">
+        <div class="border-red"></div>
+    </div>
+</div>
+
+<div id="invis-3" onclick="setStep(4);" rel="Расходный кассовый ордер" class="hover-invisible"
+     style="left: 342px; top: 84px; height: 25px;">
+    <img src="images/1c-3-step-invis.jpg" width="295" height="25" alt=""/>
+</div>
+
+
+<!-- -----------------слайд 4------------------- -->
+
+<div delay="1000" style="left:45px; width: 220px; top: 290px;" class="interactive-popup e-step-4">
+    <p>Перед вам открылся диалог, который позволит вам работать с расходными кассовыми ордерами</p>
+</div>
+
+<div delay="2000" style="top: 290px; width: 235px; left: 314px;" class="interact-arr e-step-4"><i></i>
+    В открывшемся окне нам необходимо нажать на команду <strong>«Добавить»</strong> (кнопка рядом с кнопкой «Действие»,
+    верхний левый угол)
+</div>
+
+<div rel="#invis-4" delay="2500" bg="#sl-4" class="hover-area nopop red-circle e-step-4"
+     style="height: 27px; width: 27px; left: 69px; top: 110px;">
+    <div class="red">
+        <div class="border-red"></div>
+    </div>
+</div>
+
+<div id="invis-4" onclick="setStep(5);" rel="Добавить" class="hover-invisible"
+     style="left: 65px; padding: 10px 5px 5px 10px; top: 106px;">
+    <img src="images/1c-4-step-invis.jpg" width="19" height="19" alt=""/>
+</div>
+
+
+<!-- -----------------слайд 5------------------- -->
+
+
+<div delay="1000" style="left:140px; width: 420px; top: 30px;" class="interactive-popup e-step-5">
+    <p>Этот диалог позволит вам отразить возврат денежных средств покупателю. Обязательно запомните этот момент, данная
+        операция будет встречаться в вашей работе крайне часто. </p>
+</div>
+
+<div delay="2000" style="top: 220px; width: 330px; left: 156px;" class="interact-arr e-step-5"><i></i>
+    В Статье ДДС нажимаем на <strong>(…)</strong>
+</div>
+
+
+<div rel="#invis-5" delay="2500" bg="#sl-5" class="hover-area nopop red-circle e-step-5"
+     style="height: 30px; width: 30px; left: 563px; top: 163px;">
+    <div class="red">
+        <div class="border-red"></div>
+    </div>
+</div>
+
+<div id="invis-5" onclick="setStep(6);" rel="Выбор статьи" class="hover-invisible"
+     style="height: 40px; width: 40px; left: 558px; top: 158px;">
+    <img src="images/spacer.png" width="40" height="40" alt=""/>
+</div>
+
+
+<!-- -----------------слайд 6------------------- -->
+
+
+<div delay="1000" style="left: 410px; width: 240px; top: 10px;" class="interactive-popup e-step-6">
+    <p>Далее вам необходимо отнести операцию к <strong>«Выдаче заработной платы в новом диалоге»</strong></p>
+</div>
+
+<div delay="2000" style="top: 135px; width: 260px; left: 370px;" class="interact-arr e-step-6"><i></i>
+    В наименовании выбираем <strong>«Выдача заработной платы»</strong>
+</div>
+
+<!--<div  delay="2000" style="left: 410px; width: 240px; top: 260px;" class="interactive-popup e-step-6">-->
+<!--<p style="margin-bottom: 0;">-->
+<!--С помощью аналогичных действии можно:</p>-->
+<!--<ul>-->
+<!--<li>добавить/удапить любую кнопку на панели быстрого доступа;</li>-->
+<!--<li>поместить панепь быстрого доступа под пентой.</li>-->
+<!--</ul>-->
+
+<!--</div>-->
+
+
+<div rel="#invis-6" delay="2500" bg="#sl-6" class="hover-area nopop red-circle square e-step-6"
+     style="height: 30px; width: 250px; left: 180px; top: 285px;">
+    <div class="red">
+        <div class="border-red"></div>
+    </div>
+</div>
+
+
+<div id="invis-6" onclick="setStep(7);" rel="Выдача заработной платы" class="hover-invisible"
+     style="height: 60px; width: 280px; left: 195px; top: 280px;">
+    <img src="images/spacer.png" width="240" height="40" alt=""/>
+</div>
+
+<!-- -----------------слайд 7------------------- -->
+
+<!--<div  delay="1000" style="left:140px; width: 420px; top: 110px;" class="interactive-popup e-step-7">-->
+<!--<p>Интерфейс Microsoft Excel 2010 позволяет рационально использовать-->
+<!--рабочую область. Если требуется увеличить рабочую область, ленту-->
+<!--можно скрыть (свернуть).</p>-->
+<!--</div>-->
+
+<div delay="1000" id="bef-in-1" style="top: 220px; width: 280px; left: 276px;" class="interact-arr e-step-7"><i></i>
+    Сумма (выделено красной обводкой) <strong>вводим нужную нам сумму</strong>, указанную в ведомости.
+</div>
+
+<div id="af-in-1" style="top: 220px;  width: 280px; left: 276px;" class="interact-arr"><i></i>
+    Переходим на вкладку <strong>«Печать»</strong>
+</div>
+
+
+<div rel="#invis-7" delay="1500" class="interactive-input e-step-7" style="left: 141px; top: 231px;">
+    <input class="err" type="text" onfocus="$(this).val('');" onkeyup="return removeSymbols(this);" id="iteract-1"
+           value="0.00"/>
+</div>
+
+<div id="invis-7" rel="Печать" onclick="setStep(8);$('#af-in-1').fadeOut(0);" class="hover-invisible"
+     style="height: 40px; width: 84px; left: 90px; top: 198px;">
+    <img src="images/spacer.png" width="84" height="40" alt=""/>
+</div>
+
+
+<div rel="#invis-7" bg="#sl-8" id="after-input-1" class="hover-area nopop red-circle square"
+     style="height: 30px; width: 64px; left: 95px; top: 203px;">
+    <div class="red">
+        <div class="border-red"></div>
+    </div>
+</div>
+
+
+<!-- -----------------слайд 8------------------- -->
+
+<div delay="1000" style="left:140px; width: 420px; top: 110px;" class="interactive-popup e-step-8">
+    <p>11. Вы должны обязательно указать дату данной операции, иначе в дальнейшем будет практически невозможно отразить
+        данную операцию в вашей отчетности. </p>
+</div>
+
+<div delay="2000" id="bef-in-2" style="top: 260px; width: 200px; left: 76px;" class="interact-arr e-step-8"><i></i>
+    <strong>Вводим дату</strong> (дата должна соответствовать дате указанной на платежной ведомоти)
+</div>
+
+<div delay="2000" id="af-in-2" style="top: 260px; width: 200px; left:76px;" class="interact-arr"><i></i>
+    Нажимаем команду <strong>«Провести»</strong> (нижний правый угол)
+</div>
+
+
+<div rel="#invis-8" delay="2000" bg="#sl-9" id="after-input-2" class="hover-area nopop red-circle square"
+     style="height: 30px; width: 90px; left: 395px; top: 370px;">
+    <div class="red">
+        <div class="border-red"></div>
+    </div>
+</div>
+
+<div id="invis-8" onclick="setStep(9);$('#af-in-2').fadeOut(0);" rel="Провести" class="hover-invisible nopop"
+     style=" width: 90px; padding: 5px; left: 402px; top: 373px;">
+    <img src="images/1c-8-step-invis.jpg" width="65" height="18" alt=""/>
+</div>
+
+<div delay="500" class="interactive-input e-step-8" style="left: 427px; top: 286px;">
+    <input class="err" type="text" onfocus="$(this).val('');" onkeyup="return removeSymbols2(this);" id="iteract-2"/>
+    <script>
+        $("#iteract-2").mask("99.99.9999");
+    </script>
+</div>
+
+<!-- -----------------слайд 9------------------- -->
+
+<div delay="1000" style="left:140px; width: 420px; top: 150px;" class="interactive-popup e-step-9">
+    <p>Поздравляем вы почти у цели. Вам осталось только нажать на кнопку <strong>Печать</strong> и вывести проделанную
+        вам операцию на печатью </p>
+</div>
+
+<div delay="2000" style="top: 280px; width: 250px; left: 176px;" class="interact-arr e-step-9"><i></i>
+    Нажимаем команду «Печать» для вывода документа на печать.
+</div>
+
+
+<div rel="#invis-9" delay="2500" bg="#sl-10" class="hover-area nopop red-circle square e-step-9"
+     style="height: 30px; width: 70px; left: 295px; top: 370px;">
+    <div class="red">
+        <div class="border-red"></div>
+    </div>
+</div>
+
+<div id="invis-9" onclick="setStep(10);" rel="Печать" class="hover-invisible nopop"
+     style=" width: 90px; padding: 5px; left: 303px; top: 373px;">
+    <img src="images/1c-9-step-invis.png" width="55" height="18" alt=""/>
+</div>
+
+<!-- -----------------слайд 10------------------- -->
+
+<!--<div  delay="1000" style="top: 180px; width: 250px; left: 176px;" class="interact-arr e-step-10"><i></i>-->
+<!--Чтобы снова раскрыть ленту, нажмите кнопку <img src="images/excel-10-action.jpg" alt=""/>-->
+<!--</div>-->
+
+
+<!--<div rel="#invis-10" delay="1000" bg="#sl-10" class="hover-area nopop red-circle e-step-10" style="height: 30px; width: 30px; left:598px; top:23px;">-->
+<!--<div class="red"><div class="border-red"></div></div>-->
+<!--</div>-->
+
+<!--<div id="invis-10" rel="<strong>Развернуть ленту (CTRL+F1)</strong><span>Отображение ленты всегда развернутой,<br>даже после выбора команды</span>" onclick="setStep(11);" class="hover-invisible" style="left:600px; top:25px;">-->
+<!--<img src="images/excel-11-step-invis.jpg" width="29" height="29" alt=""/>-->
+<!--</div>-->
+
+<!--<div  delay="1000" style="left:140px; width: 420px; top: 150px;" class="interactive-popup e-step-11">-->
+<!--<p>Лента раскрыта. Вы выполнили предложенные действия с элементами-->
+<!--интерфейса Microsoft Excel 2010.</p>-->
+<!--</div>-->
+
+<!--<div delay="1000" style="top: 260px; width: 200px; left: 76px;" class="interact-arr e-step-10"><i></i>-->
+<!--В открывшемся окне выбираем <strong>«РКО»</strong><br>-->
+<!--Нажимаем на <strong>«Печать»</strong> для вывода документа на печать.-->
+<!--</div>-->
+
+<div rel="#invis-10" delay="500" bg="#sl-11" class="hover-area nopop red-circle square e-step-10"
+     style="height: 30px; width: 70px; left: 526px; top: 145px;">
+    <div class="red">
+        <div class="border-red"></div>
+    </div>
+</div>
+
+<div id="invis-10" onclick="setStep(11);" rel="Печать" class="hover-invisible nopop"
+     style="height: 50px; width: 90px; left: 516px; top: 135px;">
+    <img src="images/spacer.png" width="90" height="50" alt=""/>
+</div>
+
+<!-- -----------------слайд 11------------------- -->
+
+<div rel="#invis-11" delay="1500" bg="#sl-12" class="hover-area nopop red-circle square e-step-11"
+     style="height: 30px; width: 70px; left: 78px; top: 82px;">
+    <div class="red">
+        <div class="border-red"></div>
+    </div>
+</div>
+
+<div id="invis-11" onclick="setStep(12);" rel="Печать" class="hover-invisible nopop"
+     style="height: 50px; width: 90px; left: 68px; top: 72px;">
+    <img src="images/spacer.png" width="90" height="50" alt=""/>
+</div>
+
+<div delay="1000" style="top: 260px; width: 200px; left: 76px;" class="interact-arr e-step-11"><i></i>
+    Нажимаем на <strong>«Печать»</strong> для вывода документа на печать.
+</div>
+
+
+</div>
+
+</div>
+</div>
+<script type="text/javascript">initSlideExcel_1();</script>
+
+</div>
+
+<div id="slide-7" minsize='800x550' style="display: none;">
+
+    <div class="custom-page">
+        <div class="head-page">
+            <div class="num">3</div>
+            Тема 1. Основы работы в 1С
+        </div>
+        <div class="custom-content">
+            <div class="interactive center" style="width: 717px;">
+                <img src="images/interactive-screen.png" alt=""/>
+
+
+                <div class="hover-area red-circle" style="height: 70px; width: 70px; left: 5px; top:35px;">
+                    <div class="red">
+                        <div class="border-red">
+                            <div class="info">
+                                <p><strong>Лента — главный элемент пользовательского интерфейса MS Excel 2010.
+                                    Она расположена вдоль верхней части окна каждого приложения</strong>
+                                </p>
+
+                                <p>Если требуется увеличить рабочую область, ленту можно скрыть (свернуть)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hover-area red-circle" style="height: 30px; width: 30px; left: 257px; top:35px;">
+                    <div class="red">
+                        <div class="border-red">
+                            <div class="info">
+                                <p>Если требуется увеличить рабочую область, ленту можно скрыть (свернуть)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="interact-arr">
+                <i></i>
+                Наведите курсор мыши
+                на выделенные области окна,
+                чтобы ознакомиться
+                с некоторыми элементами
+                интерфейса и их назначением
+            </div>
+            <p>Дизайн пользовательского интерфейса MS Excel 2010 позволяет:</p>
+            <ul>
+                <li>упростить процедуры поиска и использования всего диапазона возможностей, предоставляемых этим
+                    приложением;
+                </li>
+                <li>предотвратить загромождение рабочей области</li>
+            </ul>
+            <p>Основными элементами интерфейса MS Excel 2010 являются <strong>лента</strong> (с постоянными и
+                контекстными вкладками, а также с предоставлением MS Office Backstage), <strong>панель быстрого доступа,
+                    строка
+                    формул, вкладки навигации между листами книги, строка состояния</strong></p>
+
+        </div>
+    </div>
+    <script type="text/javascript">initSlideCircles();</script>
+
+</div>
+
+<div id="template-video" style="display: none;">
+    <div class="sizer" style="width: 455px; height: 304px;">
+        <div class="play"></div>
+        <img src="images/video-t.jpg" alt="">
+    </div>
+</div>
+
+<div id="template-test" style="display: none;">
+    <div class="test-page viewer">
+        <div class="test-head">
+            <div class="left">
+                <img src="images/test-ico-big.png" alt="">
+            </div>
+            <div class="right">
+                <div class="info">
+                    <div class="name">Проверка навыков работы с программой 1С-Рарус.</div>
+                    <div class="deskription-test">
+                        В этом тесте мы проверим ваши навыки по работе с системой 1С-Рарус. Насколько вы знаете, как выгружать кассовые ордера и как проводить возврат вещей и отражать это в кассовом терминале.
+                    </div>
+                    <ul class="characters">
+                        <li>Количество вопросов: <strong>34</strong></li>
+                        <li>Время на выполнение: <strong>45 мин</strong></li>
+                        <li>Максимальный балл: <strong>85</strong></li>
+                    </ul>
+
+                    <a class="begin-btn" href="#">Пройти тест</a>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>
+
+
+
+	
