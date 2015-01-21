@@ -28,7 +28,7 @@
   type ::atom(),
   category ::atom(),
   acl = public ::atom(),
-  priority = 1 ::pos_integer(),
+  priority = 1 :: atom() | pos_integer(),
   file ::file(),
   callback = undefined ::binary(),
   worker ::reference(),
@@ -81,9 +81,7 @@
 -record(pool, {
   node :: atom(),
   category :: atom(),
-  enabled :: boolean(),
-  active_tasks_num =0 :: non_neg_integer(),
-  total_tasks = 0 ::non_neg_integer()
+  enabled :: boolean()
 }).
 
 

@@ -53,8 +53,8 @@ current_task_to_proplist(#current_task{id=Id, status=Status, url=Url, type = Typ
     {pool,Pool}
   ]}.
 
-pool_to_proplist(#pool{node = Node, category = Type, enabled = Enabled, active_tasks_num = Active, total_tasks = Total}) ->
-  {[{node, atom_to_binary(Node,utf8)}, {category, Type}, {enabled, Enabled}, {active_tasks, Active}, {total, Total}]}. 
+pool_to_proplist(#pool{node = Node, category = Type, enabled = Enabled}) ->
+  {[{node, atom_to_binary(Node,utf8)}, {category, Type}, {enabled, Enabled}]}.
 
 
 %% @doc

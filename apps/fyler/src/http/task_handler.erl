@@ -17,7 +17,7 @@
 ]).
 
 -record(state, {
-  method :: get | post, delete,
+  method :: get | post | delete,
   id :: non_neg_integer(),
   status :: queued | progress | success | abort
 }).
