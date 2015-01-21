@@ -26,34 +26,40 @@ init(_Args) ->
   ?D({event_handler_set}),
   {ok,[]}.
 
-handle_event(#fevent{type = complete, node = Node, task = #task{id=TaskId, file = #file{url = Url}, type = Type} = Task, stats = #job_stats{time_spent = Time, download_time = DTime} = Stats}, State) ->
+handle_event(#fevent{type = complete, node = Node, task = #task{id=TaskId, file = #file{url = Url}, type = Type, category = Category} = Task, stats = #job_stats{time_spent = Time, download_time = DTime} = Stats}, State) ->
   ?D({task_complete, Type, Url, {time,Time},{download_time,DTime}}),
-  case ets:member(?T_STATS, TaskId) of
-    true ->
-      ets:delete(?T_STATS,TaskId),
-
-      fyler_server:save_task_stats(Stats),
-
-      fyler_server:send_response(Task,Stats,success),
-      gen_server:cast(fyler_server,{task_finished,Node}),
+  case ets:info(Category) of
+    undefined ->
       {ok, State};
-    false ->
-      {ok, State}
+    _ ->
+      case ets:member(Category, TaskId) of
+        true ->
+          ets:delete(Category, TaskId),
+          fyler_server:save_task_stats(Stats),
+          fyler_server:send_response(Task,Stats,success),
+          gen_server:cast(fyler_server, {task_finished,Node}),
+          {ok, State};
+        false ->
+          {ok, State}
+      end
   end;
 
-handle_event(#fevent{type = failed, node = Node, task = #task{id=TaskId, file = #file{url = Url}, type = Type} = Task, error = Error, stats = Stats}, State) ->
+handle_event(#fevent{type = failed, node = Node, task = #task{id=TaskId, file = #file{url = Url}, type = Type, category = Category} = Task, error = Error, stats = Stats}, State) ->
   ?D({task_failed, Type, Url, Error}),
-  case ets:member(?T_STATS, TaskId) of
-    true ->
-      ets:delete(?T_STATS,TaskId),
-
-      fyler_server:save_task_stats(Stats),
-
-      fyler_server:send_response(Task,undefined,failed),
-      gen_server:cast(fyler_server,{task_finished,Node}),
+  case ets:info(Category) of
+    undefined ->
       {ok, State};
-    false ->
-      {ok, State}
+    _ ->
+      case ets:member(Category, TaskId) of
+        true ->
+          ets:delete(Category, TaskId),
+          fyler_server:save_task_stats(Stats),
+          fyler_server:send_response(Task,undefined,failed),
+          gen_server:cast(fyler_server, {task_finished,Node}),
+          {ok, State};
+        false ->
+          {ok, State}
+      end
   end;
 
 handle_event(#fevent{type = aborted, node = Node}, State) ->
@@ -61,11 +67,11 @@ handle_event(#fevent{type = aborted, node = Node}, State) ->
   {ok, State};
 
 handle_event(#fevent{type = pool_enabled, node = Node}, State) ->
-  gen_server:cast(fyler_server,{pool_enabled,Node, true}),
+  gen_server:cast(fyler_server, {pool_enabled, Node, true}),
   {ok, State};
 
 handle_event(#fevent{type = pool_disabled, node = Node}, State) ->
-  gen_server:cast(fyler_server,{pool_enabled,Node, false}),
+  gen_server:cast(fyler_server, {pool_enabled, Node, false}),
   {ok, State};
 
 handle_event(_Event, Pid) ->

@@ -58,6 +58,10 @@ convert("mp3", "", Options = #{hls_writer := HlsWriter}, File) ->
   media_convert:flv_to_hls(AllOptions),
   wait_result(AllOptions, File);
 
+convert("", "h264", Options, File) ->
+  media_convert:flv_to_hls(Options),
+  wait_result(Options, File);
+
 convert(_Audio, "flashsv2", _Options, File) ->
   ?D(<<"fallback to recording_to_hls: codec flashsv2">>),
   recording_to_hls:run(File, [{stream_type, <<"share">>}]);

@@ -10,5 +10,4 @@
 {pg_pass,"fyler"}.
 {pg_pool_size, 5}.
 {pg_max_overflow, 10}.
-{instances, #{document => #{instances => []},
-              video => #{instances => []}}}.
+{video, #{priorities => #{high => 1, low => 3}, instances => []}.

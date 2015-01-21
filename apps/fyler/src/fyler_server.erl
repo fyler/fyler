@@ -20,7 +20,7 @@
 
 -define(SESSION_EXP_TIME, 300000).
 
--define(APPS, [ranch, cowlib, cowboy, mimetypes, ibrowse]).
+-define(APPS, [ranch, cowlib, cowboy, mimetypes, hackney]).
 
 %% API
 -export([start_link/0]).
@@ -43,12 +43,7 @@
   cowboy_pid :: pid(),
   aws_bucket :: string(),
   aws_dir :: string(),
-  pool_nodes = #{} ::#{atom() => atom()},
-  busy_timers = #{},
-  tasks_count = 1 :: non_neg_integer(),
-  tasks = #{} ::#{atom() => fyler_queue:fyler_queue(task())},
-  priorities = #{} :: #{atom() => #{atom() => pos_integer()}},
-  task_filter = [] :: [task()]
+  managers = #{} :: #{atom() => pid()}
 }).
 
 
@@ -80,18 +75,12 @@ init(_Args) ->
 
   AwsDir = ?Config(aws_dir, "fyler/"),
 
-  Priorities = ?Config(priorities, #{}),
-
-  Instances = ?Config(instances, #{}),
-  ?I({instances, Instances}),
-  maps:map(fun(Category, Opts) -> fyler_sup:start_pool_monitor(Category, Opts) end, Instances),
-
   ?I({server_start, AwsDir, Buckets}),
 
   %% check db for task in progress and restart them
   self() ! check_pending_tasks,
 
-  {ok, #state{cowboy_pid = Http, aws_bucket = Buckets, aws_dir = AwsDir, priorities = Priorities}}.
+  {ok, #state{cowboy_pid = Http, aws_bucket = Buckets, aws_dir = AwsDir}}.
 
 
 %% @doc
@@ -223,25 +212,20 @@ run_task(URL, Type, Options) ->
 -spec task_status(non_neg_integer()) -> undefined | queued | progress | success | abort.
 
 task_status(TaskId) ->
-  case ets:lookup(?T_STATS, TaskId) of
-    [#current_task{status = Status}] ->
+  case pg_cli:equery("select status from tasks where id = " ++ integer_to_list(TaskId)) of
+    {ok, _, []} ->
+      undefined;
+    {ok, _, [{<<"progress">>}]} ->
+      progress;
+    {ok, _, [{<<"success">>}]} ->
+      success;
+    {ok, _, [{<<"abort">>}]} ->
+      abort;
+    {ok, _, [{Status}]} ->
       Status;
-    _ ->
-      case pg_cli:equery("select status from tasks where id = " ++ integer_to_list(TaskId)) of
-        {ok, _, []} ->
-          undefined;
-        {ok, _, [{<<"progress">>}]} ->
-          progress;
-        {ok, _, [{<<"success">>}]} ->
-          success;
-        {ok, _, [{<<"abort">>}]} ->
-          abort;
-        {ok, _, [{Status}]} ->
-          Status;
-        Other ->
-          ?E({pg_query_failed, Other}),
-          undefined
-      end
+    Other ->
+      ?E({pg_query_failed, Other}),
+      undefined
   end.
 
 -spec cancel_task(non_neg_integer()) -> ok.
@@ -250,26 +234,14 @@ cancel_task(Id) ->
   gen_server:call(fyler_server, {cancel_task, Id}).
 
 
-handle_call({run_task, URL, Type, Options}, _From, State) ->
-  case build_task(URL, Type, Options, false, State) of
-    {{ok,Id,Category}, #state{tasks = Tasks} = NewState} ->
-      
-      Len = fyler_queue:len(maps:get(Category,Tasks)),
-
-      if Len > ?QUEUE_LENGTH_WM
-        -> self() ! {alarm_too_many_tasks, Category};
-        true -> ok
-      end,
-
-      self() ! {try_next_task, Category},
-
+handle_call({run_task, URL, Type, Options}, _From, #state{aws_bucket = Buckets, aws_dir = AwsDir} = State) ->
+  case build_task(URL, Type, Options, false, Buckets, AwsDir) of
+    #task{id = Id} = Task ->
+      NewState = send_to_manager(Task, State),
       {reply, {ok, Id}, NewState};
     _ ->
-        {reply, false, State}
+      {reply, false, State}
   end;
-
-handle_call(tasks,_From,#state{tasks = Tasks}=State) ->
-  {reply, Tasks, State};
 
 handle_call(create_session, _From, #state{} = State) ->
   random:seed(now()),
@@ -285,31 +257,28 @@ handle_call({is_authorized, Token}, _From, #state{} = State) ->
           end,
   {reply, Reply, State};
 
-
 handle_call(pools, _From, State) ->
   {reply, ets:tab2list(?T_POOLS), State};
 
-handle_call({cancel_task, TaskId}, _From, #state{task_filter = Filter} = State) ->
-  case ets:lookup(?T_STATS, TaskId) of
-    [#current_task{status = queued}] ->
-      ets:delete(?T_STATS, TaskId),
-      case pg_cli:equery("update tasks set status = 'abort' where id = " ++ integer_to_list(TaskId)) of
-        {ok, _} -> ok;
-        Other -> ?E({pg_query_failed, Other})
-      end,
-      {reply, ok, State#state{task_filter = [TaskId|Filter]}};
-    [#current_task{pool = Node, status = progress}] ->
-      ets:delete(?T_STATS, TaskId),
-      case pg_cli:equery("update tasks set status = 'abort' where id = " ++ integer_to_list(TaskId)) of
-        {ok, _} -> ok;
-        Other -> ?E({pg_query_failed, Other})
-      end,
-      rpc:cast(Node, fyler_pool, cancel_task, [TaskId]),
-      {reply, ok, State};
-    _ ->
-      {reply, ok, State}
-  end;
-
+handle_call({cancel_task, TaskId}, _From, State) ->
+  NewState =
+    case pg_cli:equery("select task_type from tasks where id = " ++ integer_to_list(TaskId)) of
+      {ok, _, []} ->
+        State;
+      {ok, _, [{Handler}]} ->
+        Category = erlang:apply(atom_to_binary(Handler, utf8), category, []),
+        case pg_cli:equery("update tasks set status = 'abort' where id = " ++ integer_to_list(TaskId)) of
+          {ok, _} -> ok;
+          Other -> ?E({pg_query_failed, Other})
+        end,
+        {State1, Manager} = find_manager(Category, State),
+        fyler_category_manager:cancel_task(Manager, TaskId),
+        State1;
+      Other ->
+        ?E({pg_query_failed, Other}),
+        State
+    end,
+  {reply, ok, NewState};
 
 handle_call(_Request, _From, State) ->
   ?D(_Request),
@@ -320,17 +289,17 @@ handle_cast({pool_enabled, Node, Enabled}, State) ->
   ?D({pool_enabled, Enabled, Node}),
   case ets:lookup(?T_POOLS,Node) of
     [#pool{category = Category} = Pool] ->
-      if Enabled 
-        -> self() ! {try_next_task, Category};
-        true -> ok
-      end,
+      {NewState, Pid} = find_manager(Category, State),
       ets:insert(?T_POOLS, Pool#pool{enabled = Enabled}),
-      {noreply, State};
+      if
+        Enabled -> fyler_category_manager:pool_enabled(Pid, Node);
+        true -> fyler_category_manager:pool_disabled(Pid, Node)
+      end,
+      {noreply, NewState};
     _ -> {noreply, State}
   end;
 
-handle_cast({task_finished, Node}, State) ->
-  decriment_tasks_num(Node),
+handle_cast({task_finished, _Node}, State) ->
   {noreply, State};
 
 handle_cast(_Request, State) ->
@@ -341,77 +310,62 @@ handle_info({session_expired, Token}, State) ->
   ets:delete(?T_SESSIONS, Token),
   {noreply, State};
 
-handle_info({pool_connected, Node, Category, Enabled, Num}, #state{tasks = Tasks} = State) ->
-  ?D({pool_connected, Node, Category, Enabled, Num}),
-  Pool = #pool{node = Node, active_tasks_num = Num, category = Category, enabled = Enabled},
+handle_info({pool_connected, Node, Category, Enabled}, State) ->
+  ?D({pool_connected, Node, Category, Enabled}),
+  Pool = #pool{node = Node, category = Category, enabled = Enabled},
 
   {fyler_pool, Node} ! pool_accepted,
 
-  NewTasks = case ets:lookup(?T_POOLS,Node) of
-    [#pool{}] -> handle_dead_pool(Node,Tasks);
-    _ -> Tasks
+  {NewState, Manager} = find_manager(Category, State),
+
+  case ets:lookup(?T_POOLS,Node) of
+    [#pool{}] -> fyler_category_manager:pool_down(Manager, Node);
+    _ -> ok
   end,
 
   ets:insert(?T_POOLS, Pool),
-  if Enabled 
-    ->  
-      self() ! {try_next_task, Category};
-    true -> ok
-  end,
 
-  fyler_event:pool_connected(Node, Category),
+  fyler_event:pool_connected(Manager, Category),
+  fyler_category_manager:pool_connected(Manager, Node),
   if
-    not Enabled -> fyler_event:pool_disabled(Node, Category);
+    not Enabled ->
+      fyler_event:pool_disabled(Node, Category),
+      fyler_category_manager:pool_disabled(Manager, Node);
     true -> ok
   end,
 
-  {noreply, State#state{tasks = NewTasks}};
+  {noreply, NewState};
 
-handle_info({try_next_task, Category}, #state{tasks = Tasks, busy_timers = Timers, task_filter = Filter}=State) ->
-  List = maps:get(Category,Tasks,fyler_queue:new()),
-  {NewTasks,NewTimers,NewFilter} = case out_with_filter(List, Filter) of
-    {{empty, _}, Filter_} -> ?D(no_more_tasks),
-                  {Tasks,Timers,Filter_};
-    {{{value, #task{id = TaskId, type = TaskType, file = #file{url = TaskUrl}} = Task}, NewList}, Filter_} ->
-      case choose_pool(Category) of
-        #pool{node = Node, active_tasks_num = Num, total_tasks = Total} = Pool ->
-          send_to_pool(Node,Task),
-          ets:insert(?T_STATS, #current_task{id = TaskId, task = Task, type = TaskType, url = TaskUrl, pool = Node, status = progress}),
-          ets:insert(?T_POOLS, Pool#pool{active_tasks_num = Num + 1, total_tasks = Total + 1}),
-          Timers_ = remove_timer(Category,Timers),
-          Empty = fyler_queue:is_empty(NewList),
-          if Empty
-            -> ok;
-            true -> erlang:send_after(?TRY_NEXT_TIMEOUT, self(), {try_next_task, Category})
-          end,
-          {maps:update(Category,NewList,Tasks),Timers_,Filter_};
-        _ -> 
-          Timers_ = add_timer(Category,Timers),
-          {Tasks, Timers_,Filter}
-      end
-  end,
-  {noreply, State#state{tasks=NewTasks, busy_timers = NewTimers, task_filter = NewFilter}};
+handle_info({task_accepted, Ref, Node, Category}, State) ->
+  {NewState, Manager} = find_manager(Category, State),
+  fyler_category_manager:task_accepted(Manager, Ref, Node),
+  {noreply, NewState};
 
-handle_info({alarm_high_idle_time, Type}, State) ->
-  fyler_event:high_idle_time(Type),
-  ?E({high_idle_time,Type}),
-  {noreply, State};
+handle_info({task_rejected, Ref, Node, Category}, State) ->
+  {NewState, Manager} = find_manager(Category, State),
+  fyler_category_manager:task_rejected(Manager, Ref, Node),
+  {noreply, NewState};
 
-handle_info({alarm_too_many_tasks, Type}, State) ->
-  ?E({too_many_tasks,Type}),
-  {noreply, State};
-
-handle_info({nodedown, Node}, #state{tasks = Tasks} = State) ->
+handle_info({nodedown, Node}, #state{managers = Managers} = State) ->
   ?E({nodedown, Node}),
-  NewTasks = case ets:lookup(?T_POOLS, Node) of 
-    [#pool{category = Category}] ->
-      fyler_event:pool_down(Node, Category),
-      handle_dead_pool(Node,Tasks);
-    _ -> 
-      ?E({unknown_node, Node}),
-      Tasks
-  end,
-  {noreply, State#state{tasks = NewTasks}};
+  NewState =
+    case ets:lookup(?T_POOLS, Node) of
+      [#pool{category = Category}] ->
+        ets:delete(?T_POOLS,Node),
+        fyler_event:pool_down(Node, Category),
+        case maps:get(Category, Managers, undefined) of
+          undefined ->
+            {ok, Pid} = fyler_sup:start_category_manager(Category),
+            State#state{managers = maps:put(Category, Pid, Managers)};
+          Pid ->
+            fyler_category_manager:pool_down(Pid, Node),
+            State
+        end;
+      _ ->
+        ?E({unknown_node, Node}),
+        State
+    end,
+  {noreply, NewState};
 
 
 handle_info(check_pending_tasks, State) ->
@@ -423,10 +377,17 @@ handle_info(check_pending_tasks, State) ->
                       []
            end,
   Tasks = [fyler_utils:task_record_to_task(V) || V <- Values],
-  #state{tasks = NewTasks} = NewState = rebuild_tasks(Tasks,State),
-  [self() ! {try_next_task, Category} || Category <- maps:keys(NewTasks)],
+  NewState = rebuild_tasks(Tasks, State),
   {noreply, NewState};
 
+handle_info({'DOWN', _, process, Pid, Reason}, #state{managers = Managers} = State) ->
+  case lists:keyfind(Pid, 2, maps:to_list(Managers)) of
+    {Category, Pid} ->
+      ?D({"manager down", Category, Reason}),
+      {noreply, State#state{managers = maps:remove(Category, Managers)}};
+    false ->
+      {noreply, State}
+  end;
 
 handle_info(Info, State) ->
   ?D(Info),
@@ -439,22 +400,24 @@ terminate(_Reason,_State) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
-handle_dead_pool(Node,Tasks) ->
-  ets:delete(?T_POOLS,Node),
-  case ets:match_object(?T_STATS, #current_task{pool = Node, _ = '_'}) of
-    [] -> 
-      ?I({"No active tasks in dead pool",Node}), 
-      Tasks;
-    Tasks_ -> 
-      ?I({"Pool died with active tasks; restarting...",Node}),
-      Tasks2 = restart_tasks([Task_ || #current_task{task=Task_} <- Tasks_], Tasks),
-      [self() ! {try_next_task, Category} || Category <- maps:keys(Tasks2)],
-      Tasks2
+find_manager(Category, #state{managers = Managers} = State) ->
+  case maps:get(Category, Managers, undefined) of
+    undefined ->
+      {ok, Pid} = fyler_sup:start_category_manager(Category),
+      erlang:monitor(process, Pid),
+      {State#state{managers = maps:put(Category, Pid, Managers)}, Pid};
+    Pid ->
+      {State, Pid}
   end.
 
-%% @doc Send task to remote pool
-send_to_pool(Node,Task) ->
-  rpc:cast(Node, fyler_pool, run_task, [Task]).
+%% @doc Send to task to task manager
+
+-spec send_to_manager(task(), #state{}) -> #state{}.
+
+send_to_manager(#task{category = Category} = Task, State) ->
+  {NewState, Manager} = find_manager(Category, State),
+  fyler_category_manager:run_task(Manager, Task),
+  NewState.
 
 %% @doc
 %% Send response to task initiator as HTTP Post with params <code>status = success|failed</code> and <code>path</code - path to download file if success.
@@ -466,10 +429,10 @@ send_response(#task{callback = undefined}, _, _) ->
   ok;
 
 send_response(#task{callback = Callback, file = #file{is_aws = true, bucket = Bucket, target_dir = Dir}}, #job_stats{result_path = Path}, success) ->
-  ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=ok&aws=true&bucket=" ++ Bucket ++ "&data=" ++ jiffy:encode({[{path, Path}, {dir, list_to_binary(Dir)}]}), []);
+  hackney:post(Callback, [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}], iolist_to_binary("status=ok&aws=true&bucket=" ++ Bucket ++ "&data=" ++ jiffy:encode({[{path, Path}, {dir, list_to_binary(Dir)}]})), []);
 
 send_response(#task{callback = Callback}, _, failed) ->
-  ibrowse:send_req(binary_to_list(Callback), [{"Content-Type", "application/x-www-form-urlencoded"}], post, "status=failed", []).
+  hackney:post(Callback, [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}], <<"status=failed">>, []).
 
 start_http_server() ->
   Dispatch = cowboy_router:compile([
@@ -490,38 +453,7 @@ start_http_server() ->
   ).
 
 
-%% @doc
-%% Choose pool by type.
-%% @end
-
--spec choose_pool(atom()) -> #pool{}|undefined.
-
-choose_pool(Type) ->
-  choose_pool_from_list(ets:match_object(?T_POOLS, #pool{category = Type, enabled = true, _ = '_'})).
-
-choose_pool_from_list([]) ->
-  undefined;
-
-choose_pool_from_list(Pools) ->
-  hd(lists:keysort(#pool.total_tasks, Pools)).
-
-
-add_timer(Type,Timers) ->
-  case maps:find(Type,Timers) of
-    error ->  Ref = erlang:send_after(?IDLE_TIME_WM, self(), {alarm_high_idle_time, Type}),
-              maps:put(Type,Ref,Timers);
-    _ -> Timers
-  end.
-
-remove_timer(Type,Timers) ->
-  case maps:find(Type,Timers) of
-    error ->  Timers;
-    {_,Ref} -> erlang:cancel_timer(Ref),
-              maps:remove(Type,Timers)
-  end.
-
-
-build_task(URL, Type, Options, OldId, #state{tasks = Tasks, aws_bucket = Buckets, aws_dir = AwsDir, tasks_count = TCount, priorities = Priorities} = State) ->
+build_task(URL, Type, Options, OldId, Buckets, AwsDir) ->
   case parse_url(URL, Buckets) of
     {true, Bucket, Path, Name, Ext} ->
       %% generate temp uniq name
@@ -554,12 +486,9 @@ build_task(URL, Type, Options, OldId, #state{tasks = Tasks, aws_bucket = Buckets
             Id_;
           _ -> OldId
         end,
-
-      Task = #task{id = Id, type = Handler, category = Category, options = Options, callback = Callback, priority = get_priority(Priorities, Category, Priority), file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = true, url = Path, name = Name, dir = UniqueDir, tmp_path = TmpName}},
-      NewTasks = add_task(Task, Tasks),
-      ets:insert(?T_STATS, #current_task{id = Id, type = list_to_atom(Type), url = Path, status = queued}),
-    {{ok, Id, Category}, State#state{tasks = NewTasks, tasks_count = TCount + 1}};
-    _ -> 
+      %%ets:insert(?T_STATS, #current_task{id = Id, type = list_to_atom(Type), url = Path, status = queued}),
+      #task{id = Id, type = Handler, category = Category, options = Options, callback = Callback, priority = Priority, file = #file{extension = Ext, target_dir = TargetDir, bucket = Bucket, is_aws = true, url = Path, name = Name, dir = UniqueDir, tmp_path = TmpName}};
+    _ ->
       %% change status if taks was from db
       case OldId of
         false -> ok;
@@ -567,20 +496,7 @@ build_task(URL, Type, Options, OldId, #state{tasks = Tasks, aws_bucket = Buckets
           pg_cli:equery("update tasks set status = 'failed', error_msg = 'bad_url' where id = " ++ integer_to_list(OldId))
       end,
       ?E({bad_url, URL, Buckets}),
-      {false, State}
-  end.
-
-
-%% @doc
-%% Add task to category queue
-%% @end
-
--spec add_task(task(),map()) -> map().
-
-add_task(#task{category = Cat, priority = Priority} = Task, Tasks) ->
-  case maps:find(Cat, Tasks) of
-    error -> maps:put(Cat, fyler_queue:in(Task, Priority, fyler_queue:new()), Tasks);
-    {ok, Q} -> maps:update(Cat, fyler_queue:in(Task, Priority, Q), Tasks)
+      false
   end.
 
 %% @doc
@@ -589,34 +505,11 @@ add_task(#task{category = Cat, priority = Priority} = Task, Tasks) ->
 
 rebuild_tasks([], State) -> ?I("All tasks rebuilt."), State;
 
-rebuild_tasks([{Url, Type, Options, Id}=Task|T], State) ->
-  ?D({rebuilding_task, Task}),
-  {_, NewState} = build_task(Url, Type, Options, Id, State),
-  rebuild_tasks(T, NewState).
+rebuild_tasks([{Url, Type, Options, Id}=T|Tasks], #state{aws_bucket = Buckets, aws_dir = AwsDir} = State) ->
+  ?D({rebuilding_task, T}),
+  Task = build_task(Url, Type, Options, Id, Buckets, AwsDir),
+  rebuild_tasks(Tasks, send_to_manager(Task, State)).
 
-
-%% @doc
-%% Add tasks to the queue again (after pool is down).
-%% @end
-
--spec restart_tasks(list(#task{}), map()) -> map().
-
-restart_tasks([], Tasks) -> ?I("All tasks restarted."), Tasks;
-
-restart_tasks([Task|T], Old) ->
-  ?D({restarting_task, Task}),
-  restart_tasks(T, add_task(Task,Old)).
-
-
--spec decriment_tasks_num(atom()) -> N::non_neg_integer()|false.
-
-decriment_tasks_num(Node) ->
-  case ets:lookup(?T_POOLS, Node) of
-    [#pool{active_tasks_num = N} = Pool] when N > 0 ->
-      ets:insert(?T_POOLS, Pool#pool{active_tasks_num = N-1}),
-      N-1;
-    _ -> false
-  end.
 
 %%% @doc
 %%% @end
@@ -667,44 +560,6 @@ uniqueId() ->
   {Mega, S, Micro} = erlang:now(),
   integer_to_list(Mega * 1000000000000 + S * 1000000 + Micro).
 
--spec get_priority(map(), atom(), atom()) -> pos_integer().
-
-get_priority(AllPriorities, Category, Priority) ->
-  case maps:get(Category, AllPriorities, 1) of
-    1 ->
-      1;
-    Priorities ->
-      maps:get(Priority, Priorities, 1)
-  end.
-
--spec out_with_filter(fyler_queue:fyler_queue(task()), [non_neg_integer()]) ->
-  {{empty, fyler_queue:fyler_queue(task())}, [non_neg_integer()]} |
-  {{{value, task()}, fyler_queue:fyler_queue(task())}, [non_neg_integer()]}.
-
-out_with_filter(Tasks, []) ->
-  {fyler_queue:out(Tasks), []};
-
-out_with_filter(Tasks, [TaskId]) ->
-  case fyler_queue:out(Tasks) of
-    {{value, #task{id = TaskId}}, NewTasks} ->
-      {fyler_queue:out(NewTasks), []};
-    Else ->
-      {Else, [TaskId]}
-  end;
-
-out_with_filter(Tasks, Filter) ->
-  case fyler_queue:out(Tasks) of
-    {{value, #task{id = TaskId}}, NewTasks} ->
-      case lists:member(TaskId, Filter) of
-        true ->
-          out_with_filter(NewTasks, lists:delete(TaskId, Filter));
-        false ->
-          {{{value, #task{id = TaskId}}, NewTasks}, Filter}
-      end;
-    Else ->
-      {Else, Filter}
-  end.
-
 -ifdef(TEST).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -729,22 +584,6 @@ dir_url_test() ->
   ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("http://devtbupload.s3-eu-west-1.amazonaws.com/recordings/2/record_17/stream_1/", "devtbupload")),
   ?assertEqual({false, "https://2.com/record_17/stream_1/"}, parse_url_dir("https://2.com/record_17/stream_1/", "devtbupload")).
 
-restart_task_test() ->
-  Tasks = [
-    #task{id=1, category = test},
-    #task{id=2, category = video},
-    #task{id=3, category = docs}
-  ],
-  NewTasks = restart_tasks(Tasks, #{docs => fyler_queue:in(#task{id=5, category = docs}, fyler_queue:new())}),
-  ?assertEqual(1, fyler_queue:len(maps:get(test,NewTasks))),
-  ?assertEqual(1, fyler_queue:len(maps:get(video,NewTasks))),
-  ?assertEqual(2, fyler_queue:len(maps:get(docs,NewTasks))).
-
-out_with_filter_test() ->
-  Task = #task{id = 1},
-  ?assertMatch({{{value, #task{id = 1}}, _}, [2]}, out_with_filter(fyler_queue:in(Task, fyler_queue:new()), [2])),
-  ?assertMatch({{{value, #task{id = 1}}, _}, [2, 3, 4]}, out_with_filter(fyler_queue:in(Task, fyler_queue:new()), [2, 3, 4])),
-  ?assertMatch({{empty, _}, []}, out_with_filter(fyler_queue:in(Task, fyler_queue:new()), [1])).
 
 setup_() ->
   lager:start(),
@@ -813,16 +652,6 @@ pools_ets_test_() ->
       fun add_pool_t_/1
       )
     },
-    {"choose pool",
-    ?setup(
-      fun choose_pool_t_/1
-      )
-    },
-    {"decr tasks",
-    ?setup(
-      fun decriment_tasks_num_t_/1
-      )
-    },
     {"remove pool",
     ?setup(
       fun remove_pool_t_/1
@@ -836,26 +665,9 @@ pools_ets_test_() ->
   ].
 
 add_pool_t_(_) ->
-  fyler_server ! {pool_connected, test, docs, true, 11},
+  fyler_server ! {pool_connected, test, docs, true},
   [
     ?_assertEqual(1, length(fyler_server:pools()))
-  ].
-
-decriment_tasks_num_t_(_) ->
-  ets:insert(?T_POOLS, #pool{active_tasks_num = 12, node = test}),
-  [
-    ?_assertEqual(11, decriment_tasks_num(test)),
-    ?_assertMatch([#pool{active_tasks_num = 11}], ets:lookup(?T_POOLS, test))
-  ].
-
-choose_pool_t_(_) ->
-  ets:insert(?T_POOLS, #pool{total_tasks = 2, node = test, category = docs, enabled = true}),
-  ets:insert(?T_POOLS, #pool{total_tasks = 12, node = test2, category = docs, enabled = true}),
-  ets:insert(?T_POOLS, #pool{node = test3, category = docass, enabled = false}),
-  ets:insert(?T_POOLS, #pool{total_tasks = 0, node = test4, category = docs, enabled = false}),
-  [
-    ?_assertMatch(#pool{node=test}, choose_pool(docs)),
-    ?_assertEqual(undefined, choose_pool(docass))
   ].
 
 remove_pool_t_(_) ->
@@ -865,8 +677,8 @@ remove_pool_t_(_) ->
   ].
 
 pools_list_t_(_) ->
-  ets:insert(?T_POOLS, #pool{total_tasks = 2, node = test, category = docs, enabled = true}),
-  ets:insert(?T_POOLS, #pool{total_tasks = 12, node = test2, category = docs, enabled = true}),
+  ets:insert(?T_POOLS, #pool{node = test, category = docs, enabled = true}),
+  ets:insert(?T_POOLS, #pool{node = test2, category = docs, enabled = true}),
   ets:insert(?T_POOLS, #pool{node = test3, category = docass, enabled = false}),
   Pools = [P||{P}<-fyler_server:pools()],
   [
@@ -903,8 +715,7 @@ tasks_test_() ->
 add_task_t_(_) ->
   Res = fyler_server:run_task("https://test.s3.amazonaws.com/test.smth", "do_nothing", [{target_dir, <<"target/dir">>},{callback, <<"call_me.php">>}]),
   [
-    ?_assertEqual({ok, 1},Res),
-    ?_assertEqual(1, fyler_queue:len(maps:get(test,gen_server:call(fyler_server,tasks))))
+    ?_assertEqual({ok, 1},Res)
   ].
 
 run_task_t_(_) ->

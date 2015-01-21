@@ -1,5 +1,6 @@
 -module(fyler_sup).
 -include("fyler.hrl").
+-include("log.hrl").
 -behaviour(supervisor).
 
 %% API
@@ -8,10 +9,11 @@
 %% Supervisor callbacks
 -export([init/1]).
 
--export([start_worker/1, stop_worker/1, start_pool_monitor/2]).
+-export([start_worker/1, stop_worker/1, start_category_manager/1]).
 
 %% Helper macro for declaring children of supervisor
 -define(CHILD(I, Type), {I, {I, start_link, []}, permanent, 5000, Type, [I]}).
+-define(CHILD(I, Type, Args), {I, {I, start_link, Args}, permanent, 5000, Type, [I]}).
 
 %% ===================================================================
 %% API functions
@@ -33,15 +35,18 @@ start_worker(Task) ->
 stop_worker(Pid) ->
   supervisor:terminate_child(worker_sup,Pid).
 
-start_pool_monitor(Category, Opts) ->
-  supervisor:start_child(pool_monitor_sup, [Category, Opts]).
+%% @doc Start category manager
+%% @end
+-spec start_category_manager(atom()) -> supervisor:startlink_ret().
+
+start_category_manager(Category) ->
+  supervisor:start_child(category_sup, [Category]).
 
 start_link(server) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []);
+  supervisor:start_link({local, ?MODULE}, ?MODULE, []);
 
 start_link(pool) ->
   supervisor:start_link({local, ?MODULE}, ?MODULE, [pool]).
-
 
 %% ===================================================================
 %% Supervisor callbacks
@@ -54,16 +59,19 @@ init([worker]) ->
       temporary, 2000, worker, [fyler_worker]}
   ]}};
 
-init([pool_monitor]) ->
+init([category_sup]) ->
   {ok, {{simple_one_for_one, 5, 10}, [
-    {undefined, {fyler_monitor_pool, start_link, []},
-      transient, 2000, worker, [fyler_monitor_pool]}
+    {undefined, {fyler_category_manager, start_link, []},
+      temporary, 2000, worker, []}
   ]}};
+
+init([category]) ->
+  {ok, {{one_for_all, 5, 10}, []}};
 
 init([]) ->
     Children = [
-      {pool_monitor_sup,
-        {supervisor,start_link,[{local, pool_monitor_sup}, ?MODULE, [pool_monitor]]},
+      {category_sup,
+        {supervisor,start_link,[{local, category_sup}, ?MODULE, [category_sup]]},
         permanent,
         infinity,
         supervisor,
@@ -73,7 +81,6 @@ init([]) ->
       ?CHILD(fyler_event,worker),
       ?CHILD(fyler_event_listener,worker)
     ],
-
     SizeArgs = [
       {size,?Config(pg_pool_size,5)},
       {max_overflow,?Config(pg_max_overflow,10)}
@@ -90,7 +97,6 @@ init([]) ->
 init([pool]) ->
   Children = [
     ?CHILD(fyler_monitor, worker),
-    ?CHILD(fyler_monitor_smooth, worker),
     ?CHILD(fyler_uploader,worker),
     {worker_sup,
       {supervisor,start_link,[{local, worker_sup}, ?MODULE, [worker]]},
