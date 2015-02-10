@@ -8,35 +8,46 @@
 -export([run/1,run/2, category/0]).
 
 -define(COMMAND(In,Out), io_lib:format("7z -o~s x ~s",[Out,In])).
--define(COMMAND_RAR(In,Out), io_lib:format("unrar-free -x ~s ~s",[In, Out])).
-
 
 category() ->
   document.
 
 run(File) -> run(File,[]).
 
-run(#file{tmp_path = Path, name = Name, dir = Dir, extension = Ext},_Opts) ->
+run(#file{tmp_path = Path, dir = Dir}, _Opts) ->
   Start = ulitos:timestamp(),
 
-  Command = if Ext =:= "rar"
-    -> ?COMMAND_RAR(Path,Dir);
-    true -> ?COMMAND(Path,Dir)
-  end,
+  OutDir = filename:join(Dir,"out"),
+
+  Command = ?COMMAND(Path,OutDir),
 
   ?D({command, Command}),
 
   Data = os:cmd(Command),
-  FileName = "index.html",
+  RootDir = detect_root(OutDir),
+  ?D({archive_root, RootDir}),
+  FullRootDir = filename:join(Dir,RootDir),
+  FileName = filename:join(RootDir, detect_filename(filelib:wildcard("*.html", FullRootDir))),
+  ?D({archive_index, FileName}),
   HTML = filename:join(Dir,FileName),
   case  filelib:is_file(HTML) of
     true -> 
           {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(FileName)]}};
-    _ -> {error, {'7z_failed',HTML,Data}}
+    _ -> {error, {'unpack_archive_failed',HTML,Data}}
   end.
 
+detect_filename([]) ->
+  "empty.html";
 
+detect_filename(List) ->
+  case lists:member("index.html", List) of
+    true -> "index.html";
+    false -> hd(List)
+  end. 
 
-
-
-
+%% checks whether we have one dir with contents or index on the top level 
+detect_root(Dir) ->
+  case file:list_dir(Dir) of
+    {ok, [SubDir]} -> filename:join("out", SubDir);
+    _Else -> "out"
+  end.

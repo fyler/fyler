@@ -45,6 +45,10 @@ test-video:
 clean:
 	@$(REBAR) clean
 
+clean-hard:
+	rm -rf deps/
+	@$(REBAR) clean
+	
 db_setup:
 	scripts/setup_db.erl
 

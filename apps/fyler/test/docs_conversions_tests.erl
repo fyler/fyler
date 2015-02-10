@@ -31,8 +31,10 @@ cleanup_(_) ->
   ulitos_file:recursively_del_dir(?PATH("tmp")),
   ulitos_file:recursively_del_dir(?PATH("thumbs")),
   ulitos_file:recursively_del_dir(?PATH("swfs")),
+  ulitos_file:recursively_del_dir(?PATH("scorm")),
   file:delete(?PATH("10.pdf")),
   file:delete(?PATH("index.html")),
+  file:delete(?PATH("Untitled.html")),
   file:delete(?PATH("13.pdf")),
   file:delete(?PATH("2.pdf")),
   file:delete(?PATH("3.pdf")),
@@ -80,14 +82,14 @@ doc_pdftk_test_()->
 doc_unpack_test_()->
   ?setup(
     [ 
-      {timeout, ?TIMEOUT, [zip_unpack_t_()]}  
+      {timeout, ?TIMEOUT, [zip_unpack_t_("20", "")]}
     ]
   ).
 
-doc_unrar_test_()->
+doc_unpack2_test_()->
   ?setup(
     [ 
-      {timeout, ?TIMEOUT, [rar_unpack_t_()]}  
+      {timeout, ?TIMEOUT, [zip_unpack_t_("21", "scorm")]}      
     ]
   ).
 
@@ -174,17 +176,10 @@ pdf_to_swf_thumbs_t_() ->
     ?assertEqual(2, length(Stat#job_stats.result_path))
   end. 
 
-zip_unpack_t_() ->
+zip_unpack_t_(Name, To) ->
   fun() ->
-    Res = unpack_html:run(#file{tmp_path = ?PATH("18.zip"), name = "18", dir = ?PATH("")}),
-    ?assertMatch({ok,#job_stats{}}, Res),
-    {_, Stat} = Res,
-    ?assertEqual(1, length(Stat#job_stats.result_path))
-  end. 
 
-rar_unpack_t_() ->
-  fun() ->
-    Res = unpack_html:run(#file{tmp_path = ?PATH("19.rar"), name = "19", dir = ?PATH("")}),
+    Res = unpack_html:run(#file{tmp_path = ?PATH(Name++".zip"), name = Name, dir = ?PATH(To), extension = "zip"}),
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(1, length(Stat#job_stats.result_path))
