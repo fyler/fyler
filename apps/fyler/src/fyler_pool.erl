@@ -312,9 +312,11 @@ cleanup_task_files(#task{file = #file{dir = Dir}})->
   ulitos_file:recursively_del_dir(Dir).
 
 pool_enabled(#state{category = Category}) ->
+  ?D(pool_enabled),
   fyler_event:pool_enabled(node(), Category).
 
 pool_disabled(#state{category = Category}) ->
+  ?D(pool_disabled),
   fyler_event:pool_disabled(node(), Category).
 
 next_task(#state{buf_size = 0, active_tasks = Active, max_active = Max} = State) ->

@@ -132,8 +132,7 @@ pools() ->
 %% @end
 
 current_tasks() ->
-  [fyler_utils:current_task_to_proplist(Task) || Task <- ets:tab2list(?T_STATS)].
-
+  gen_server:call(?MODULE, current_tasks).
 
 -spec tasks_stats() -> list(#job_stats{}).
 
@@ -280,6 +279,10 @@ handle_call({cancel_task, TaskId}, _From, State) ->
     end,
   {reply, ok, NewState};
 
+handle_call(current_tasks, _From, #state{managers = Managers} = State) ->
+  Stat = fun(M, _, Stats) -> [{[{M, [fyler_utils:current_task_to_proplist(Task) || Task <- ets:tab2list(M)]}]} | Stats] end,
+  {reply, maps:fold(Stat, [], Managers), State};
+
 handle_call(_Request, _From, State) ->
   ?D(_Request),
   {reply, unknown, State}.
@@ -384,7 +387,7 @@ handle_info({'DOWN', _, process, Pid, Reason}, #state{managers = Managers} = Sta
   case lists:keyfind(Pid, 2, maps:to_list(Managers)) of
     {Category, Pid} ->
       ?D({"manager down", Category, Reason}),
-      {noreply, State#state{managers = maps:remove(Category, Managers)}};
+      {noreply, State#state{managers = maps:put(Category, undefined, Managers)}};
     false ->
       {noreply, State}
   end;
