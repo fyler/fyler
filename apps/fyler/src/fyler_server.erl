@@ -288,7 +288,14 @@ handle_call(_Request, _From, State) ->
   {reply, unknown, State}.
 
 
-handle_cast({pool_enabled, Node, Enabled}, State) ->
+handle_cast({task_finished, _Node}, State) ->
+  {noreply, State};
+
+handle_cast(_Request, State) ->
+  ?D(_Request),
+  {noreply, State}.
+
+handle_info({pool_enabled, Node, Enabled}, State) ->
   ?D({pool_enabled, Enabled, Node}),
   case ets:lookup(?T_POOLS,Node) of
     [#pool{category = Category} = Pool] ->
@@ -301,13 +308,6 @@ handle_cast({pool_enabled, Node, Enabled}, State) ->
       {noreply, NewState};
     _ -> {noreply, State}
   end;
-
-handle_cast({task_finished, _Node}, State) ->
-  {noreply, State};
-
-handle_cast(_Request, State) ->
-  ?D(_Request),
-  {noreply, State}.
 
 handle_info({session_expired, Token}, State) ->
   ets:delete(?T_SESSIONS, Token),

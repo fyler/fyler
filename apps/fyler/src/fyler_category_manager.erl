@@ -688,6 +688,7 @@ choose_pool_t_(_) ->
   State5 = #state{retasks = Q(2), pools = [{a, disabled}]},
   State6 = #state{retasks = Q(2), pools = [{b, enabled}]},
   State7 = #state{retasks = Q(2), tasks = Q(1), pools = [{a, enabled}, {b, enabled}]},
+  {_, #state{pools = Pools}} = choose_pool(State3),
   [
     ?_assertEqual({tasks, State1}, choose_pool(State1)),
     ?_assertMatch({zero, #state{pools = [{b, {pending, _, 1}}]}}, choose_pool(State2)),
@@ -695,7 +696,9 @@ choose_pool_t_(_) ->
     ?_assertMatch({pools, #state{pools = [{b, enabled}, {a, {pending, _, 1}}]}}, choose_pool(State4)),
     ?_assertEqual({tasks, State5}, choose_pool(State5)),
     ?_assertMatch({zero, #state{pools = [{b, {pending, _, 2}}]}}, choose_pool(State6)),
-    ?_assertMatch({zero, #state{pools = [{a, {pending, _, 2}}, {b, {pending, _, 1}}]}}, choose_pool(State7))
+    ?_assertMatch({zero, #state{pools = [{a, {pending, _, 2}}, {b, {pending, _, 1}}]}}, choose_pool(State7)),
+    ?_assertMatch({pending, _, 1}, status(b, Pools)),
+    ?_assertMatch(disabled, status(a, Pools))
   ].
 
 -endif.
