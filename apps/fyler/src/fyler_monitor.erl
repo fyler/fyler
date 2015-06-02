@@ -19,7 +19,7 @@
 -record(state, {
   listener :: pid(),
   alarm = false,
-  timeout = 2000,
+  timeout = 10000,
   cpu_max = 100
 }).
 
@@ -43,11 +43,12 @@ stop_monitor() ->
 init(_Args) ->
   ?D(monitor_init),
   Pid = spawn_link(fyler_system_listener, listen, []),
-  {ok, idle, #state{listener = Pid, cpu_max = ?Config(cpu_high_watermark, 90), timeout = ?Config(cpu_check_timeout, 2000)}}.
+  {ok, idle, #state{listener = Pid, cpu_max = ?Config(cpu_high_watermark, 90), timeout = ?Config(cpu_check_timeout, 10000)}}.
 
 
 idle(start_monitor, #state{alarm = true, cpu_max = Max, timeout = T} = State) ->
   CPU = cpu_sup:util(),
+  ?LOGSTASH("cpu ~p", [CPU]),
   Alarm = if  CPU < Max ->
     ?D({cpu_available,CPU}),
     fyler_pool:enable(),
@@ -59,6 +60,7 @@ idle(start_monitor, #state{alarm = true, cpu_max = Max, timeout = T} = State) ->
 
 idle(start_monitor, #state{cpu_max = Max, timeout = T} = State) ->
   CPU = cpu_sup:util(),
+  ?LOGSTASH("cpu ~p", [CPU]),
   Alarm = if CPU > Max ->
     ?D({cpu_busy,CPU}),
     fyler_pool:disable(),
@@ -78,6 +80,7 @@ idle(_Event, _From, State) ->
 
 monitoring(timeout, #state{alarm = false, cpu_max = Max, timeout = T} = State) ->
   CPU = cpu_sup:util(),
+  ?LOGSTASH("cpu ~p", [CPU]),
   Alarm = if CPU > Max ->
     ?D({cpu_busy,CPU}),
     fyler_pool:disable(),
@@ -89,6 +92,7 @@ monitoring(timeout, #state{alarm = false, cpu_max = Max, timeout = T} = State) -
 
 monitoring(timeout, #state{cpu_max = Max, timeout = T} = State) ->
   CPU = cpu_sup:util(),
+  ?LOGSTASH("cpu ~p", [CPU]),
   Alarm = if  CPU < Max ->
     ?D({cpu_available,CPU}),
     fyler_pool:enable(),

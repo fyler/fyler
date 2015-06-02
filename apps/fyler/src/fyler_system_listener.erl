@@ -23,6 +23,7 @@ init(_Args) ->
   {ok,[]}.
 
 handle_event({set_alarm,{system_memory_high_watermark,_}},S) ->
+  ?LOGSTASH("memory ~p", [high]),
   case ?Config(role,false) of
     pool -> ?I({system_memory_hw_set});%fyler_pool:disable();
     _ -> ok
@@ -30,6 +31,7 @@ handle_event({set_alarm,{system_memory_high_watermark,_}},S) ->
   {ok,S};
 
 handle_event({clear_alarm,system_memory_high_watermark},S) ->
+  ?LOGSTASH("memory ~p", [low]),
   case ?Config(role,false) of
     pool -> ?I({system_memory_hw_clear});%%fyler_pool:enable();
     _ -> ok
