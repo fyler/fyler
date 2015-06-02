@@ -36,7 +36,8 @@ handle_event(#fevent{type = complete, node = Node, task = #task{id=TaskId, file 
         true ->
           ets:delete(Category, TaskId),
           fyler_server:save_task_stats(Stats),
-          fyler_server:send_response(Task,Stats,success),
+          Send = fun() -> fyler_server:send_response(Task, Stats, success) end,
+          spawn(Send),
           gen_server:cast(fyler_server, {task_finished,Node}),
           {ok, State};
         false ->
@@ -54,7 +55,8 @@ handle_event(#fevent{type = failed, node = Node, task = #task{id=TaskId, file = 
         true ->
           ets:delete(Category, TaskId),
           fyler_server:save_task_stats(Stats),
-          fyler_server:send_response(Task,undefined,failed),
+          Send = fun() -> fyler_server:send_response(Task, undefined, failed) end,
+          spawn(Send),
           gen_server:cast(fyler_server, {task_finished,Node}),
           {ok, State};
         false ->
@@ -63,7 +65,7 @@ handle_event(#fevent{type = failed, node = Node, task = #task{id=TaskId, file = 
   end;
 
 handle_event(#fevent{type = aborted, node = Node}, State) ->
-  gen_server:cast(fyler_server,{task_finished,Node}),
+  gen_server:cast(fyler_server, {task_finished,Node}),
   {ok, State};
 
 handle_event(#fevent{type = pool_enabled, node = Node}, State) ->
