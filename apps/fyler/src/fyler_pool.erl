@@ -197,8 +197,8 @@ handle_info(connect_to_server, #state{server_node = Node, category = Category, e
   ?D({connecting_to_node, Node}),
   Connected = case net_kernel:connect_node(Node) of
                 true ->
-                  global:sync(),
                   {fyler_server, Node} ! {pool_connected, node(), Category, (Enabled and not Busy)},
+                  global:sync(),
                   pending;
                 _ -> ?E(server_not_found),
                       erlang:send_after(?POLL_SERVER_TIMEOUT, self(), connect_to_server),
@@ -311,15 +311,13 @@ cleanup_task_files(#task{file = #file{dir = Dir}})->
   ?D({cleanup, Dir}),
   ulitos_file:recursively_del_dir(Dir).
 
-pool_enabled(#state{server_node = Server, category = Category}) ->
+pool_enabled(#state{category = Category}) ->
   ?D(pool_enabled),
-  fyler_event:pool_enabled(node(), Category),
-  {fyler_server, Server} ! {pool_enabled, node(), true}.
+  fyler_event:pool_enabled(node(), Category).
 
-pool_disabled(#state{server_node = Server, category = Category}) ->
+pool_disabled(#state{category = Category}) ->
   ?D(pool_disabled),
-  fyler_event:pool_disabled(node(), Category),
-  {fyler_server, Server} ! {pool_enabled, node(), false}.
+  fyler_event:pool_disabled(node(), Category).
 
 next_task(#state{buf_size = 0, active_tasks = Active, max_active = Max} = State) ->
   State#state{busy = length(Active) >= Max};
