@@ -26,7 +26,10 @@ init(_Args) ->
   ?D({event_handler_set}),
   {ok,[]}.
 
-handle_event(#fevent{type = complete, node = Node, task = #task{id=TaskId, file = #file{url = Url, size = Size}, type = Type, category = Category} = Task, stats = #job_stats{time_spent = Time, download_time = DTime, upload_time = UTime} = Stats}, State) ->
+handle_event(#fevent{type = Result, node = Node,
+  task = #task{id = TaskId, file = #file{url = Url, size = Size}, type = Type, category = Category} = Task,
+  stats = #job_stats{time_spent = Time, download_time = DTime, upload_time = UTime} = Stats}, State) ->
+
   ?D({task_complete, Type, Url, {time,Time},{download_time,DTime}}),
   case ets:info(Category) of
     undefined ->
@@ -36,30 +39,10 @@ handle_event(#fevent{type = complete, node = Node, task = #task{id=TaskId, file 
         true ->
           ets:delete(Category, TaskId),
           fyler_server:save_task_stats(Stats),
-          Send = fun() -> fyler_server:send_response(Task, Stats, success) end,
-          spawn(Send),
-          gen_server:cast(fyler_server, {task_finished,Node}),
-          ?LOGSTASH("~p complete ~p ~p ~p ~p ~p ~p ~p", [TaskId, Category, Type, Url, Size, Node, DTime, Time, UTime]),
-          {ok, State};
-        false ->
-          {ok, State}
-      end
-  end;
-
-handle_event(#fevent{type = failed, node = Node, task = #task{id=TaskId, file = #file{url = Url, size = Size}, type = Type, category = Category} = Task, error = Error, stats = #job_stats{time_spent = Time, download_time = DTime, upload_time = UTime} = Stats}, State) ->
-  ?D({task_failed, Type, Url, Error}),
-  case ets:info(Category) of
-    undefined ->
-      {ok, State};
-    _ ->
-      case ets:member(Category, TaskId) of
-        true ->
-          ets:delete(Category, TaskId),
-          fyler_server:save_task_stats(Stats),
-          Send = fun() -> fyler_server:send_response(Task, undefined, failed) end,
-          spawn(Send),
-          gen_server:cast(fyler_server, {task_finished,Node}),
-          ?LOGSTASH("~p failed ~p ~p ~p ~p ~p ~p ~p", [TaskId, Category, Type, Url, Size, Node, DTime, Time, UTime]),
+          fyler_server:send_response(Task, Stats),
+          gen_server:cast(fyler_server, {task_finished, Node}),
+          ToLogstash = [TaskId, Result, Category, Type, Url, Size, Node, DTime, Time, UTime],
+          ?LOGSTASH("~p ~p ~p ~p ~p ~p ~p ~p ~p ~p", ToLogstash),
           {ok, State};
         false ->
           {ok, State}

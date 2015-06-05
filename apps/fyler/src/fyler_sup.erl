@@ -81,18 +81,27 @@ init([]) ->
       ?CHILD(fyler_event,worker),
       ?CHILD(fyler_event_listener,worker)
     ],
-    SizeArgs = [
+    PgSizeArgs = [
       {size,?Config(pg_pool_size,5)},
       {max_overflow,?Config(pg_max_overflow,10)}
     ],
-    PoolArgs = [
+    PgPoolArgs = [
       {name, {local, ?PG_POOL}},
       {worker_module, fyler_pg_worker}
-    ] ++ SizeArgs,
+    ] ++ PgSizeArgs,
 
-    PoolSpecs = [poolboy:child_spec(?PG_POOL, PoolArgs, [])],
+    PgPoolSpecs = [poolboy:child_spec(?PG_POOL, PgPoolArgs, [])],
 
-    {ok, { {one_for_one, 5, 10}, PoolSpecs++Children} };
+    HPoolArgs = [
+      {name, {local, ?H_POOL}},
+      {worker_module, fyler_hackney_worker},
+      {size, 3},
+      {max_overflow, 8}
+    ],
+
+    HPoolSpecs = [poolboy:child_spec(?H_POOL, HPoolArgs, [])],
+
+    {ok, { {one_for_one, 5, 10}, PgPoolSpecs ++ HPoolSpecs ++ Children} };
 
 init([pool]) ->
   Children = [

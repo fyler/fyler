@@ -25,7 +25,7 @@
 %% API
 -export([start_link/0]).
 
--export([run_task/3, clear_stats/0, pools/0, current_tasks/0, send_response/3, authorize/2, is_authorized/1, tasks_stats/0, tasks_stats/1, save_task_stats/1, task_status/1, cancel_task/1]).
+-export([run_task/3, clear_stats/0, pools/0, current_tasks/0, send_response/2, authorize/2, is_authorized/1, tasks_stats/0, tasks_stats/1, save_task_stats/1, task_status/1, cancel_task/1]).
 
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -426,16 +426,20 @@ send_to_manager(#task{category = Category} = Task, State) ->
 %% Send response to task initiator as HTTP Post with params <code>status = success|failed</code> and <code>path</code - path to download file if success.
 %% @end
 
--spec send_response(task(), stats(), success|failed) -> ok|list()|binary().
+-spec send_response(task(), stats()) -> ok.
 
-send_response(#task{callback = undefined}, _, _) ->
-  ok;
+send_response(Task, Stats) ->
+  send_response(Task, Stats, async).
 
-send_response(#task{callback = Callback, file = #file{is_aws = true, bucket = Bucket, target_dir = Dir}}, #job_stats{result_path = Path}, success) ->
-  hackney:post(Callback, [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}], iolist_to_binary("status=ok&aws=true&bucket=" ++ Bucket ++ "&data=" ++ jiffy:encode({[{path, Path}, {dir, list_to_binary(Dir)}]})), []);
+send_response(Task, Stats, async) ->
+  poolboy:transaction(?H_POOL, fun(Worker) ->
+    gen_server:cast(Worker, {response, Task, Stats})
+  end);
 
-send_response(#task{callback = Callback}, _, failed) ->
-  hackney:post(Callback, [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}], <<"status=failed">>, []).
+send_response(Task, Stats, sync) ->
+  poolboy:transaction(?H_POOL, fun(Worker) ->
+    gen_server:call(Worker, {response, Task, Stats})
+  end).
 
 start_http_server() ->
   Dispatch = cowboy_router:compile([
