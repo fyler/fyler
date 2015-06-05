@@ -25,7 +25,7 @@
 %% API
 -export([start_link/0]).
 
--export([run_task/3, clear_stats/0, pools/0, current_tasks/0, send_response/3, authorize/2, is_authorized/1, tasks_stats/0, tasks_stats/1, save_task_stats/1, task_status/1, cancel_task/1]).
+-export([run_task/3, clear_stats/0, pools/0, current_tasks/0, send_response/2, authorize/2, is_authorized/1, tasks_stats/0, tasks_stats/1, save_task_stats/1, task_status/1, cancel_task/1]).
 
 %% gen_server
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -132,8 +132,7 @@ pools() ->
 %% @end
 
 current_tasks() ->
-  [fyler_utils:current_task_to_proplist(Task) || Task <- ets:tab2list(?T_STATS)].
-
+  gen_server:call(?MODULE, current_tasks).
 
 -spec tasks_stats() -> list(#job_stats{}).
 
@@ -280,6 +279,10 @@ handle_call({cancel_task, TaskId}, _From, State) ->
     end,
   {reply, ok, NewState};
 
+handle_call(current_tasks, _From, #state{managers = Managers} = State) ->
+  Stat = fun(M, _, Stats) -> [{[{M, [fyler_utils:current_task_to_proplist(Task) || Task <- ets:tab2list(M)]}]} | Stats] end,
+  {reply, maps:fold(Stat, [], Managers), State};
+
 handle_call(_Request, _From, State) ->
   ?D(_Request),
   {reply, unknown, State}.
@@ -384,7 +387,7 @@ handle_info({'DOWN', _, process, Pid, Reason}, #state{managers = Managers} = Sta
   case lists:keyfind(Pid, 2, maps:to_list(Managers)) of
     {Category, Pid} ->
       ?D({"manager down", Category, Reason}),
-      {noreply, State#state{managers = maps:remove(Category, Managers)}};
+      {noreply, State#state{managers = maps:put(Category, undefined, Managers)}};
     false ->
       {noreply, State}
   end;
@@ -423,16 +426,20 @@ send_to_manager(#task{category = Category} = Task, State) ->
 %% Send response to task initiator as HTTP Post with params <code>status = success|failed</code> and <code>path</code - path to download file if success.
 %% @end
 
--spec send_response(task(), stats(), success|failed) -> ok|list()|binary().
+-spec send_response(task(), stats()) -> ok.
 
-send_response(#task{callback = undefined}, _, _) ->
-  ok;
+send_response(Task, Stats) ->
+  send_response(Task, Stats, async).
 
-send_response(#task{callback = Callback, file = #file{is_aws = true, bucket = Bucket, target_dir = Dir}}, #job_stats{result_path = Path}, success) ->
-  hackney:post(Callback, [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}], iolist_to_binary("status=ok&aws=true&bucket=" ++ Bucket ++ "&data=" ++ jiffy:encode({[{path, Path}, {dir, list_to_binary(Dir)}]})), []);
+send_response(Task, Stats, async) ->
+  poolboy:transaction(?H_POOL, fun(Worker) ->
+    gen_server:cast(Worker, {response, Task, Stats})
+  end);
 
-send_response(#task{callback = Callback}, _, failed) ->
-  hackney:post(Callback, [{<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}], <<"status=failed">>, []).
+send_response(Task, Stats, sync) ->
+  poolboy:transaction(?H_POOL, fun(Worker) ->
+    gen_server:call(Worker, {response, Task, Stats})
+  end).
 
 start_http_server() ->
   Dispatch = cowboy_router:compile([

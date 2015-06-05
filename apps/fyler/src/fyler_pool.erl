@@ -271,6 +271,10 @@ handle_info({'DOWN', Ref, process, _Pid, Reason}, #state{connected = Connected, 
       NewBusy = length(NewActive) >= Max,
       State#state{active_tasks = NewActive, busy = NewBusy}
   end,
+  case NewActive of
+    [] -> fyler_monitor:stop_monitor();
+    _ -> ok
+  end,
   {noreply, NewState#state{pids = maps:remove(Ref, Pids)}, timeout(NewState)};
 
 handle_info({nodedown, Node}, #state{server_node = Node}=State) ->
@@ -312,9 +316,11 @@ cleanup_task_files(#task{file = #file{dir = Dir}})->
   ulitos_file:recursively_del_dir(Dir).
 
 pool_enabled(#state{category = Category}) ->
+  ?D(pool_enabled),
   fyler_event:pool_enabled(node(), Category).
 
 pool_disabled(#state{category = Category}) ->
+  ?D(pool_disabled),
   fyler_event:pool_disabled(node(), Category).
 
 next_task(#state{buf_size = 0, active_tasks = Active, max_active = Max} = State) ->
@@ -329,6 +335,11 @@ next_task(#state{max_active = Max, tasks = Tasks, buf_size = BufSize,
   case filelib:ensure_dir(TmpDir ++ "/") of
     ok -> ok;
     {error, eexist} -> ok
+  end,
+
+  case Active of
+    [] -> fyler_monitor:start_monitor();
+    _ -> ok
   end,
 
   NewTask = Task#task{file = File#file{dir = TmpDir, tmp_path = filename:join(Dir, Path)}},

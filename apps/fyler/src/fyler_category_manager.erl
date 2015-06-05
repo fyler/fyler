@@ -86,8 +86,9 @@ init([Category]) ->
   self() ! start,
   {ok, start, #state{category = Category}}.
 
-start(Event, #state{} = State) ->
+start(Event, #state{category = Category} = State) ->
   {next_state, NextState, NewState} = start_(Event, State),
+  ?D({Category, next_state, NextState}),
   apply_state(NextState, start, NewState#state{check_ref = undefined}).
 
 zero({check, Ref}, #state{check_ref = Ref} = State) ->
@@ -96,12 +97,13 @@ zero({check, Ref}, #state{check_ref = Ref} = State) ->
 zero({check, _}, State) ->
   {next_state, zero, State};
 
-zero(Event, #state{} = State) ->
+zero(Event, #state{category = Category} = State) ->
   {next_state, NextState, NewState} = zero_(Event, State),
   case NextState of
     zero ->
       {next_state, NextState, NewState};
     NextState ->
+      ?D({Category, next_state, NextState}),
       apply_state(NextState, start, NewState#state{check_ref = undefined})
   end.
 
@@ -111,12 +113,13 @@ pools({check, Ref}, #state{check_ref = Ref} = State) ->
 pools({check, _}, State) ->
   {next_state, pools, State};
 
-pools(Event, #state{} = State) ->
+pools(Event, #state{category = Category} = State) ->
   {next_state, NextState, NewState} = pools_(Event, State),
   case NextState of
     pools ->
       {next_state, NextState, NewState};
     NextState ->
+      ?D({Category, next_state, NextState}),
       apply_state(NextState, start, NewState#state{check_ref = undefined})
   end.
 
@@ -126,12 +129,13 @@ tasks({check, Ref}, #state{check_ref = Ref} = State) ->
 tasks({check, _}, State) ->
   {next_state, tasks, State};
 
-tasks(Event, #state{} = State) ->
+tasks(Event, #state{category = Category} = State) ->
   {next_state, NextState, NewState} = tasks_(Event, State),
   case NextState of
     tasks ->
       {next_state, NextState, NewState};
     NextState ->
+      ?D({Category, next_state, NextState}),
       apply_state(NextState, start, NewState#state{check_ref = undefined})
   end.
 
@@ -190,6 +194,7 @@ zero_({task_rejected, Ref, Node}, #state{category = Category, retasks = ReTasks,
         undefined ->
           {next_state, zero, State#state{pools = NewPools}};
         Task ->
+          ?D({task_rejected, Id}),
           {NextState, NewState} = choose_pool(State#state{retasks = fyler_queue:in(Task, ReTasks), pools = NewPools}),
           {next_state, NextState, NewState}
       end;
@@ -322,6 +327,7 @@ pools_({task_rejected, Ref, Node}, #state{category = Category, retasks = ReTasks
         undefined ->
           {next_state, pools, State#state{pools = NewPools}};
         Task ->
+          ?D({task_rejected, Id}),
           {NextState, NewState} = choose_pool(State#state{retasks = fyler_queue:in(Task, ReTasks), pools = NewPools}),
           {next_state, NextState, NewState}
       end;
@@ -410,6 +416,7 @@ tasks_({task_rejected, Ref, Node}, #state{category = Category, retasks = ReTasks
         undefined ->
           {next_state, tasks, State#state{pools = NewPools}};
         Task ->
+          ?D({task_rejected, Id}),
           {NextState, NewState} = choose_pool(State#state{retasks = fyler_queue:in(Task, ReTasks), pools = NewPools}),
           {next_state, NextState, NewState}
       end;
