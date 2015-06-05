@@ -271,11 +271,21 @@ handle_info({'DOWN', Ref, process, _Pid, Reason}, #state{connected = Connected, 
       NewBusy = length(NewActive) >= Max,
       State#state{active_tasks = NewActive, busy = NewBusy}
   end,
-  case NewActive of
-    [] -> fyler_monitor:stop_monitor();
-    _ -> ok
-  end,
-  {noreply, NewState#state{pids = maps:remove(Ref, Pids)}, timeout(NewState)};
+  NewEnabled =
+    case NewActive of
+      [] ->
+        fyler_monitor:stop_monitor(),
+        if
+          not Enabled ->
+            pool_enabled(NewState),
+            true;
+          true ->
+            true
+        end;
+      _ ->
+        Enabled
+    end,
+  {noreply, NewState#state{pids = maps:remove(Ref, Pids), enabled = NewEnabled}, timeout(NewState)};
 
 handle_info({nodedown, Node}, #state{server_node = Node}=State) ->
   fyler_monitor:stop_monitor(),

@@ -19,7 +19,7 @@
 -record(state, {
   listener :: pid(),
   alarm = false,
-  timeout = 10000,
+  timeout = 5000,
   cpu_max = 100
 }).
 
@@ -43,7 +43,8 @@ stop_monitor() ->
 init(_Args) ->
   ?D(monitor_init),
   Pid = spawn_link(fyler_system_listener, listen, []),
-  {ok, idle, #state{listener = Pid, cpu_max = ?Config(cpu_high_watermark, 90), timeout = ?Config(cpu_check_timeout, 10000)}}.
+  State = #state{listener = Pid, cpu_max = ?Config(cpu_high_watermark, 90), timeout = ?Config(cpu_check_timeout, 5000)},
+  {ok, idle, State}.
 
 
 idle(start_monitor, #state{alarm = true, cpu_max = Max, timeout = T} = State) ->
@@ -103,7 +104,7 @@ monitoring(timeout, #state{cpu_max = Max, timeout = T} = State) ->
   {next_state, monitoring, State#state{alarm = Alarm}, T};
 
 monitoring(stop_monitor, State) ->
-  {next_state, idle, State};
+  {next_state, idle, State#state{alarm = false}};
 
 monitoring(_Event, #state{timeout = T}=State) ->
   ?D({monitoring, unknown_event, _Event}),
