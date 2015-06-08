@@ -12,6 +12,9 @@ else
 	REBAR := ./rebar
 endif
 
+ifndef PKG_CONFIG_PATH
+	export PKG_CONFIG_PATH = /usr/local/ffmpeg_build/lib/pkgconfig/
+endif
 
 all: deps update_deps compile
 
