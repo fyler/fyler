@@ -9,8 +9,6 @@
 
 -define(PG_POOL,fyler_pg_pool).
 
--define(H_POOL, fyler_hackney_pool).
-
 -record(file,{
   url ::string(),
   name ::string(),

@@ -9,7 +9,12 @@
 %% Supervisor callbacks
 -export([init/1]).
 
--export([start_worker/1, stop_worker/1, start_category_manager/1]).
+-export([
+  start_worker/1,
+  stop_worker/1,
+  start_category_manager/1,
+  start_callback_worker/2
+]).
 
 %% Helper macro for declaring children of supervisor
 -define(CHILD(I, Type), {I, {I, start_link, []}, permanent, 5000, Type, [I]}).
@@ -30,10 +35,10 @@ start_worker(Task) ->
 
 %% @doc Stop worker process
 %% @end
--spec stop_worker(pid()) -> ok | {error,atom()}.
+-spec stop_worker(pid()) -> ok | {error, atom()}.
 
 stop_worker(Pid) ->
-  supervisor:terminate_child(worker_sup,Pid).
+  supervisor:terminate_child(worker_sup, Pid).
 
 %% @doc Start category manager
 %% @end
@@ -41,6 +46,14 @@ stop_worker(Pid) ->
 
 start_category_manager(Category) ->
   supervisor:start_child(category_sup, [Category]).
+
+%% @doc Start hackney (callback) worker
+%% @end
+-spec start_callback_worker(task(), stats()) -> supervisor:startlink_ret().
+
+start_callback_worker(Task, Stats) ->
+  supervisor:start_child(callback_sup, [Task, Stats]).
+
 
 start_link(server) ->
   supervisor:start_link({local, ?MODULE}, ?MODULE, []);
@@ -59,10 +72,16 @@ init([worker]) ->
       temporary, 2000, worker, [fyler_worker]}
   ]}};
 
+init([hackney_worker]) ->
+  {ok, {{simple_one_for_one, 5, 120}, [
+    {undefined, {fyler_hackney_worker, start_link, []},
+      transient, brutal_kill, worker, [fyler_hackney_worker]}
+  ]}};
+
 init([category_sup]) ->
   {ok, {{simple_one_for_one, 5, 10}, [
     {undefined, {fyler_category_manager, start_link, []},
-      temporary, 2000, worker, []}
+      temporary, 2000, worker, [fyler_category_manager]}
   ]}};
 
 init([category]) ->
@@ -71,19 +90,34 @@ init([category]) ->
 init([]) ->
     Children = [
       {category_sup,
-        {supervisor,start_link,[{local, category_sup}, ?MODULE, [category_sup]]},
+        {
+          supervisor,
+          start_link,
+          [{local, category_sup}, ?MODULE, [category_sup]]
+        },
         permanent,
         infinity,
         supervisor,
         []
       },
-      ?CHILD(fyler_server,worker),
-      ?CHILD(fyler_event,worker),
-      ?CHILD(fyler_event_listener,worker)
+      {callback_sup,
+        {
+          supervisor,
+          start_link,
+          [{local, callback_sup}, ?MODULE, [hackney_worker]]
+        },
+        permanent,
+        infinity,
+        supervisor,
+        []
+      },
+      ?CHILD(fyler_server, worker),
+      ?CHILD(fyler_event, worker),
+      ?CHILD(fyler_event_listener, worker)
     ],
     PgSizeArgs = [
-      {size,?Config(pg_pool_size,5)},
-      {max_overflow,?Config(pg_max_overflow,10)}
+      {size, ?Config(pg_pool_size, 5)},
+      {max_overflow, ?Config(pg_max_overflow, 10)}
     ],
     PgPoolArgs = [
       {name, {local, ?PG_POOL}},
@@ -92,29 +126,24 @@ init([]) ->
 
     PgPoolSpecs = [poolboy:child_spec(?PG_POOL, PgPoolArgs, [])],
 
-    HPoolArgs = [
-      {name, {local, ?H_POOL}},
-      {worker_module, fyler_hackney_worker},
-      {size, 3},
-      {max_overflow, 8}
-    ],
-
-    HPoolSpecs = [poolboy:child_spec(?H_POOL, HPoolArgs, [])],
-
-    {ok, { {one_for_one, 5, 10}, PgPoolSpecs ++ HPoolSpecs ++ Children} };
+    {ok, { {one_for_one, 5, 10}, PgPoolSpecs ++ Children} };
 
 init([pool]) ->
   Children = [
     ?CHILD(fyler_monitor, worker),
-    ?CHILD(fyler_uploader,worker),
+    ?CHILD(fyler_uploader, worker),
     {worker_sup,
-      {supervisor,start_link,[{local, worker_sup}, ?MODULE, [worker]]},
+      {
+        supervisor,
+        start_link,
+        [{local, worker_sup}, ?MODULE, [worker]]
+      },
       permanent,
       infinity,
       supervisor,
       []
     },
-    ?CHILD(fyler_pool,worker)
+    ?CHILD(fyler_pool, worker)
   ],
   {ok, { {one_for_one, 5, 10}, Children} }.
 

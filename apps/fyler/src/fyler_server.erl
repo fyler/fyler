@@ -429,17 +429,7 @@ send_to_manager(#task{category = Category} = Task, State) ->
 -spec send_response(task(), stats()) -> ok.
 
 send_response(Task, Stats) ->
-  send_response(Task, Stats, async).
-
-send_response(Task, Stats, async) ->
-  poolboy:transaction(?H_POOL, fun(Worker) ->
-    gen_server:cast(Worker, {response, Task, Stats})
-  end);
-
-send_response(Task, Stats, sync) ->
-  poolboy:transaction(?H_POOL, fun(Worker) ->
-    gen_server:call(Worker, {response, Task, Stats})
-  end).
+  fyler_sup:start_callback_worker(Task, Stats).
 
 start_http_server() ->
   Dispatch = cowboy_router:compile([
