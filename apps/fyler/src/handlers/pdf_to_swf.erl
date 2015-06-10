@@ -19,7 +19,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   SDir = filename:join(Dir,"swfs"),
   file:make_dir(SDir),
   ?D({"command",?COMMAND(Path,SDir)}),
-  Data = os:cmd(?COMMAND(Path,SDir)),
+  Data = exec(?COMMAND(Path,SDir)),
   case filelib:wildcard("*.swf",SDir) of
     [] -> {error,Data};
     List -> JSON = jiffy:encode({
@@ -35,6 +35,18 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
             file:write(F,JSON),
             file:close(F),
             {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Name++".swfs.json")]}}
+  end.
+
+exec(Command) ->
+  {ok, _, _} = exec:run(Command, [stdout, monitor]),
+  loop(<<>>).
+
+loop(Data) ->
+  receive
+    {stdout, _, Part} ->
+      loop(<<Data/binary, Part/binary>>);
+    _ ->
+      Data
   end.
 
 

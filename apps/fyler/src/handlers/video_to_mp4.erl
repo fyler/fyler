@@ -14,44 +14,61 @@
 category() ->
  video.
 
-run(File) -> run(File,[]).
+run(File) -> run(File, []).
 
-run(#file{tmp_path = Path, name = Name, extension=Ext, dir = Dir},Opts) ->
+run(#file{tmp_path = Path, name = Name, extension = Ext, dir = Dir},Opts) ->
   Start = ulitos:timestamp(),
 
   NewName = if Ext =:= "mp4"
-    -> Name++"_converted";
+    -> Name ++ "_converted";
     true -> Name
   end,
 
-  MP4 =filename:join(Dir,NewName++".mp4"),
+  MP4 = filename:join(Dir, NewName ++ ".mp4"),
 
   Info = video_probe:info(Path),
 
-  Command = ?COMMAND(Path,MP4, info_to_params(Info)),
+  Command = ?COMMAND(Path, MP4, info_to_params(Info)),
 
-  ?D({"command",Command}),
-  Data = os:cmd(Command),
-  case filelib:wildcard("*.mp4",Dir) of
-    [] -> {error,Data};
-    _List -> 
-            Result = NewName++".mp4",
-            IsThumb = proplists:get_value(thumb, Opts, true),
-            if IsThumb ->
-              case video_thumb:run(#file{tmp_path = MP4, name = Name, dir = Dir},Opts) of
-                {ok,#job_stats{result_path = Thumbs}} ->
-                  {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)|Thumbs]}};
-                _Else ->
-                  ?E({video_mp4_failed, _Else}),
-                  {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)]}}
-              end;
-            true ->
-              {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)]}}
-            end
+  ?D({"command", Command}),
+  Data = exec(Command),
+  case filelib:wildcard("*.mp4", Dir) of
+    [] ->
+      {error, Data};
+    _List ->
+      Result = NewName++".mp4",
+      IsThumb = proplists:get_value(thumb, Opts, true),
+      Thumbs = thumbs(#file{tmp_path = MP4, name = Name, dir = Dir}, Opts, IsThumb),
+      {ok, #job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)|Thumbs]}}
   end.
 
+exec(Command) ->
+  {ok, _, _} = exec:run(Command, [stderr, monitor]),
+  loop(<<>>).
 
-info_to_params(#video_info{audio_codec = Audio, video_codec = Video, video_size = Size, pixel_format = Pix, video_bad_size=BadSize}=_Info) ->
+loop(Data) ->
+  receive
+    {stderr, _, Part} ->
+      loop(<<Data/binary, Part/binary>>);
+    _ ->
+      Data
+  end.
+
+thumbs(_, _, false) ->
+  [];
+
+thumbs(#file{tmp_path = MP4, name = Name, dir = Dir}, Opts, true) ->
+  case video_thumb:run(#file{tmp_path = MP4, name = Name, dir = Dir}, Opts) of
+    {ok,#job_stats{result_path = Thumbs}} ->
+      Thumbs;
+    _Else ->
+      ?E({video_mp4_failed, _Else}),
+      []
+  end.
+
+info_to_params(#video_info{audio_codec = Audio, video_codec = Video, video_size = Size,
+  pixel_format = Pix, video_bad_size = BadSize} = _Info) ->
+
   Format = pixel_format(Pix),
   VCodec =
     if

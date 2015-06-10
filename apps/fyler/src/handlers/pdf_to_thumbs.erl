@@ -19,7 +19,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   ThumbDir = filename:join(Dir,"thumbs"),
   file:make_dir(ThumbDir),
   ?D({"command",?COMMAND(Path,ThumbDir++"/")}),
-  Data = os:cmd(?COMMAND(Path,ThumbDir++"/")),
+  Data = exec(?COMMAND(Path,ThumbDir++"/")),
   ?D({gs_data,Data}),
   case filelib:wildcard("*.png",ThumbDir) of
     [] -> {error,Data};
@@ -36,6 +36,18 @@ run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
             file:write(F,JSON),
             file:close(F),
             {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Name++".thumbs.json")]}}
+  end.
+
+exec(Command) ->
+  {ok, _, _} = exec:run(Command, [stdout, monitor]),
+  loop(<<>>).
+
+loop(Data) ->
+  receive
+    {stdout, _, Part} ->
+      loop(<<Data/binary, Part/binary>>);
+    _ ->
+      Data
   end.
 
 

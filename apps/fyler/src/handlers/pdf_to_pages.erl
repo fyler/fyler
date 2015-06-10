@@ -20,7 +20,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir}, _Opts) ->
   PagesDir = filename:join(Dir,"pages"),
   ok = file:make_dir(PagesDir),
   ?D({"command", ?COMMAND(Path, PagesDir ++ "/")}),
-  Data = os:cmd(?COMMAND(Path, PagesDir ++ "/")),
+  Data = exec(?COMMAND(Path, PagesDir ++ "/")),
   ?D({gs_data, Data}),
   case filelib:wildcard("*.jpg", PagesDir) of
     [] -> {error, Data};
@@ -49,10 +49,22 @@ run(#file{tmp_path = Path, name = Name, dir = Dir}, _Opts) ->
 
 
 make_progressive_jpeg(Dir, List) ->
-  [os:cmd(?COMMAND2(filename:join(Dir,F), filename:join(Dir,"pr_" ++ F))) || F <- List],
+  [exec(?COMMAND2(filename:join(Dir,F), filename:join(Dir,"pr_" ++ F))) || F <- List],
   case filelib:wildcard("pr_*.jpg", Dir) of
     [] -> ?D({error_converting_to_progressive, Dir}), false;
     List2 -> {ok, List2}
+  end.
+
+exec(Command) ->
+  {ok, _, _} = exec:run(Command, [stdout, monitor]),
+  loop(<<>>).
+
+loop(Data) ->
+  receive
+    {stdout, _, Part} ->
+      loop(<<Data/binary, Part/binary>>);
+    _ ->
+      Data
   end.
 
 
