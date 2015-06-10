@@ -7,7 +7,7 @@
 
 -export([run/1,run/2, category/0]).
 
--define(COMMAND(In,Out), io_lib:format("7z -o~s x ~s",[Out,In])).
+-define(COMMAND(In,Out), lists:flatten(io_lib:format("7z -o~s x ~s",[Out,In]))).
 
 category() ->
   document.
@@ -23,7 +23,7 @@ run(#file{tmp_path = Path, dir = Dir}, _Opts) ->
 
   ?D({command, Command}),
 
-  Data = os:cmd(Command),
+  Data = exec_command:run(Command),
   RootDir = detect_root(OutDir),
   ?D({archive_root, RootDir}),
   FullRootDir = filename:join(Dir,RootDir),
@@ -47,7 +47,8 @@ detect_filename(List) ->
 
 %% checks whether we have one dir with contents or index on the top level 
 detect_root(Dir) ->
-  case file:list_dir(Dir) of
-    {ok, [SubDir]} -> filename:join("out", SubDir);
+  {ok, SubDirs} = file:list_dir(Dir),
+  case lists:filter(fun(D) -> filelib:is_dir(filename:join(Dir, D)) end, SubDirs) of
+    [SubDir] -> filename:join("out", SubDir);
     _Else -> "out"
   end.

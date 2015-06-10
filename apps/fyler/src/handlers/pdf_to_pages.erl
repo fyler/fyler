@@ -7,8 +7,14 @@
 
 -export([run/1, run/2,category/0]).
 
--define(COMMAND(In, OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=jpeg  -sOutputFile=\"" ++ OutName ++ "page_%04d.jpg\" -r200 -q \"" ++ In ++ "\" -c quit").
--define(COMMAND2(In, Out), "jpegtran -copy none -progressive -outfile \"" ++ Out ++ "\" \"" ++ In ++ "\"").
+-define(COMMAND(In, OutName),
+  "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=jpeg  -sOutputFile=\"" ++ OutName
+    ++ "page_%04d.jpg\" -r200 -q \"" ++ In ++ "\" -c quit"
+).
+
+-define(COMMAND2(In, Out),
+  "jpegtran -copy none -progressive -outfile \"" ++ Out ++ "\" \"" ++ In ++ "\""
+).
 
 category() ->
   document.
@@ -20,7 +26,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir}, _Opts) ->
   PagesDir = filename:join(Dir,"pages"),
   ok = file:make_dir(PagesDir),
   ?D({"command", ?COMMAND(Path, PagesDir ++ "/")}),
-  Data = os:cmd(?COMMAND(Path, PagesDir ++ "/")),
+  Data = exec_command:run(?COMMAND(Path, PagesDir ++ "/")),
   ?D({gs_data, Data}),
   case filelib:wildcard("*.jpg", PagesDir) of
     [] -> {error, Data};
@@ -49,7 +55,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir}, _Opts) ->
 
 
 make_progressive_jpeg(Dir, List) ->
-  [os:cmd(?COMMAND2(filename:join(Dir,F), filename:join(Dir,"pr_" ++ F))) || F <- List],
+  [exec_command:run(?COMMAND2(filename:join(Dir,F), filename:join(Dir,"pr_" ++ F))) || F <- List],
   case filelib:wildcard("pr_*.jpg", Dir) of
     [] -> ?D({error_converting_to_progressive, Dir}), false;
     List2 -> {ok, List2}

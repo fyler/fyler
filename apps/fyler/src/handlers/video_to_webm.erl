@@ -25,25 +25,33 @@ run(#file{tmp_path = Path, name = Name, extension=Ext, dir = Dir},Opts) ->
               true -> Name
             end,
 
-  Webm =filename:join(Dir, NewName++".webm"),
+  Webm = filename:join(Dir, NewName ++ ".webm"),
 
   Info = video_probe:info(Path),
 
   Command = ?COMMAND(Path, Webm, info_to_params(Info)),
 
-  ?D({"command",Command}),
-  Data = os:cmd(Command),
+  ?D({"command", Command}),
+  Data = exec_command:run(Command, stderr),
   case filelib:wildcard("*.webm", Dir) of
-    [] -> {error,Data};
+    [] -> {error, Data};
     _List ->
-      Result = NewName++".webm",
-      case video_thumb:run(#file{tmp_path = Webm, name = Name, dir = Dir}, Opts) of
-        {ok,#job_stats{result_path = Thumbs}} ->
-          {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)|Thumbs]}};
-        _Else ->
-          ?E({video_mp4_failed, _Else}),
-          {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)]}}
-      end
+      Result = NewName ++ ".webm",
+      IsThumb = proplists:get_value(thumb, Opts, true),
+      Thumbs = thumbs(#file{tmp_path = Webm, name = Name, dir = Dir}, Opts, IsThumb),
+      {ok, #job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)|Thumbs]}}
+  end.
+
+thumbs(_, _, false) ->
+  [];
+
+thumbs(#file{tmp_path = Webm, name = Name, dir = Dir}, Opts, true) ->
+  case video_thumb:run(#file{tmp_path = Webm, name = Name, dir = Dir}, Opts) of
+    {ok,#job_stats{result_path = Thumbs}} ->
+      Thumbs;
+    _Else ->
+      ?E({video_webm_failed, _Else}),
+      []
   end.
 
 info_to_params(#video_info{audio_codec = Audio, video_codec = Video, video_size = Size, pixel_format = Pix, video_bad_size=BadSize}=_Info) ->

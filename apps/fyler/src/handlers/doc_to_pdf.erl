@@ -5,9 +5,9 @@
 -include("../fyler.hrl").
 -include("../../include/log.hrl").
 
--export([run/1,run/2, category/0]).
+-export([run/1, run/2, category/0]).
 
--define(COMMAND(In), io_lib:format("unoconv -f pdf ~s",[In])).
+-define(COMMAND(In), lists:flatten(io_lib:format("unoconv -f pdf ~s", [In]))).
 
 category() ->
   document.
@@ -16,9 +16,10 @@ run(File) -> run(File,[]).
 
 run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   Start = ulitos:timestamp(),
-  ?D({"command",?COMMAND(Path)}),
-  Data = os:cmd(?COMMAND(Path)),
-  PDF = filename:join(Dir,Name ++ ".pdf"),
+  Command  = ?COMMAND(Path),
+  ?D({"command", Command}),
+  Data = exec_command:run(Command),
+  PDF = filename:join(Dir, Name ++ ".pdf"),
   case  filelib:is_file(PDF) of
     true -> case pdf_thumb:run(#file{tmp_path = PDF, name = Name, dir = Dir}) of
               {ok,#job_stats{result_path = Thumb}} ->

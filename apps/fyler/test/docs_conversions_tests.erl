@@ -25,6 +25,7 @@ delete_files([File|Files]) ->
 
 setup_() ->
   lager:start(),
+  application:start(exec),
   file:make_dir(?PATH("tmp")).
 
 cleanup_(_) ->
@@ -32,6 +33,7 @@ cleanup_(_) ->
   ulitos_file:recursively_del_dir(?PATH("thumbs")),
   ulitos_file:recursively_del_dir(?PATH("swfs")),
   ulitos_file:recursively_del_dir(?PATH("scorm")),
+  ulitos_file:recursively_del_dir(?PATH("out")),
   file:delete(?PATH("10.pdf")),
   file:delete(?PATH("index.html")),
   file:delete(?PATH("Untitled.html")),
@@ -48,6 +50,7 @@ cleanup_(_) ->
     Files4 when is_list(Files4) -> delete_files(Files4);
     _ -> false
   end,
+  application:stop(exec),
   application:stop(lager).
 
 

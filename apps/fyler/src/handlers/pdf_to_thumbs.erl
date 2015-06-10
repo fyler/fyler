@@ -10,30 +10,33 @@
 category() ->
   document.
 
--define(COMMAND(In,OutName), "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m  -sOutputFile=\""++OutName++"thumb_%04d.png\" -r15 -q \""++In++"\" -c quit").
+-define(COMMAND(In,OutName),
+  "gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m  -sOutputFile=\""
+  ++ OutName ++ "thumb_%04d.png\" -r15 -q \"" ++ In ++ "\" -c quit"
+).
 
-run(File) -> run(File,[]).
+run(File) -> run(File, []).
 
 run(#file{tmp_path = Path, name = Name, dir = Dir},_Opts) ->
   Start = ulitos:timestamp(),
-  ThumbDir = filename:join(Dir,"thumbs"),
+  ThumbDir = filename:join(Dir, "thumbs"),
   file:make_dir(ThumbDir),
-  ?D({"command",?COMMAND(Path,ThumbDir++"/")}),
-  Data = os:cmd(?COMMAND(Path,ThumbDir++"/")),
-  ?D({gs_data,Data}),
-  case filelib:wildcard("*.png",ThumbDir) of
+  ?D({"command", ?COMMAND(Path, ThumbDir ++ "/")}),
+  Data = exec_command:run(?COMMAND(Path, ThumbDir ++ "/")),
+  ?D({gs_data, Data}),
+  case filelib:wildcard("*.png", ThumbDir) of
     [] -> {error,Data};
     List -> JSON = jiffy:encode({
                     [
-                      {name,list_to_binary(Name)},
-                      {dir,<<"thumbs">>},
-                      {length,length(List)},
-                      {thumbs,[list_to_binary(T) || T <- List]}
+                      {name, list_to_binary(Name)},
+                      {dir, <<"thumbs">>},
+                      {length, length(List)},
+                      {thumbs, [list_to_binary(T) || T <- List]}
                     ]
            } ),
-            JSONFile = filename:join(Dir,Name++".thumbs.json"),
-            {ok,F} = file:open(JSONFile,[write]),
-            file:write(F,JSON),
+            JSONFile = filename:join(Dir,Name ++ ".thumbs.json"),
+            {ok,F} = file:open(JSONFile, [write]),
+            file:write(F, JSON),
             file:close(F),
             {ok,#job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Name++".thumbs.json")]}}
   end.

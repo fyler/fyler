@@ -6,40 +6,57 @@
 -include("../../include/log.hrl").
 -export([info/1]).
 
--define(CMD(Path), io_lib:format("ffprobe -v quiet -print_format json -show_format -show_streams ~s",[Path])).
+-define(CMD(Path), lists:flatten(io_lib:format("ffprobe -v quiet -print_format json -show_format -show_streams ~s", [Path]))).
 
 info(Path) ->
   Command = ?CMD(Path),
 
   true = filelib:is_file(Path),
-  Probe = os:cmd(Command),
-  try jiffy:decode(Probe) of
-    {Info} ->
-      Streams = proplists:get_value(<<"streams">>,Info,[]),
-      if
-        length(Streams)>0 ->
-          VideoInfo = parse_info(Streams, #video_info{}),
-          ?D({video_info, VideoInfo}),
-          VideoInfo;
-        true ->
-          ?E({file_is_not_video, Path}),
-          false
+  case exec:run_link(Command, [stdout, monitor]) of
+    {error, Error} ->
+      ?E(Error),
+      #video_info{audio_codec = default, video_codec = default};
+    _ ->
+      Probe = loop(<<>>),
+      try jiffy:decode(Probe) of
+        {Info} ->
+          Streams = proplists:get_value(<<"streams">>, Info, []),
+          if
+            length(Streams) > 0 ->
+              VideoInfo = parse_info(Streams, #video_info{}),
+              ?D({video_info, VideoInfo}),
+              VideoInfo;
+            true ->
+              ?E({file_is_not_video, Path}),
+              false
+          end
+      catch
+        throw:{error, {Ind, invalid_string}} -> ?E({error, {string:substr(Probe, Ind, 1), invalid_string}});
+        _:Error_ -> ?E(Error_),
+          #video_info{audio_codec = default, video_codec = default}
       end
-  catch
-    throw:{error, {Ind, invalid_string}} -> ?E({error, {string:substr(Probe, Ind, 1), invalid_string}});
-    _:Error_ -> ?E(Error_),
-              #video_info{audio_codec = default, video_codec = default}
+  end.
+
+
+loop(Probe) ->
+  receive
+    {stdout, _, Part} ->
+      loop(<<Probe/binary, Part/binary>>);
+    {'DOWN', _, _, _, normal} ->
+      Probe;
+    _ ->
+      <<>>
   end.
 
 parse_info([],Info) -> Info;
 
 parse_info([{Stream}|T],Info) ->
-  Type = proplists:get_value(<<"codec_type">>,Stream),
-  parse_info(T,update_info(Type,Stream,Info)).
+  Type = proplists:get_value(<<"codec_type">>, Stream),
+  parse_info(T, update_info(Type, Stream, Info)).
 
 update_info(<<"video">>,Stream,Info) ->
-  Codec = binary_to_list(proplists:get_value(<<"codec_name">>,Stream,<<>>)),
-  Size = proplists:get_value(<<"width">>,Stream,0),
+  Codec = binary_to_list(proplists:get_value(<<"codec_name">>, Stream, <<>>)),
+  Size = proplists:get_value(<<"width">>, Stream, 0),
   Height = proplists:get_value(<<"height">>,Stream,0),
   BadSize = bad_size(Size,Height),
   Pix = binary_to_list(proplists:get_value(<<"pix_fmt">>,Stream,<<>>)),

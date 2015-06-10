@@ -16,21 +16,6 @@ file_size(Path) ->
     _ -> 0
   end.
 
-video_probe_flv_speex_test() ->
-  ?assertMatch(#video_info{audio_codec="libspeex", video_codec="h264"}, video_probe:info(?PATH("stream_1.flv"))).
-
-video_probe_screen_share_test() ->    
-  ?assertMatch(#video_info{video_codec="flashsv2", pixel_format="bgr24"}, video_probe:info(?PATH("stream_2.flv"))).
-
-video_probe_mov_test() ->
-  ?assertMatch(#video_info{video_codec="mjpeg"}, video_probe:info(?PATH("v1.MOV"))).
-
-video_probe_aac_h264_test() ->
-  ?assertMatch(#video_info{video_codec="h264", audio_codec="aac"}, video_probe:info(?PATH("v2.mp4"))).
-
-video_probe_avi_test() ->
-  ?assertMatch(#video_info{video_codec="mpeg4"}, video_probe:info(?PATH("v3.avi"))).
-
 delete_files([]) ->
   ok;
 
@@ -41,6 +26,7 @@ delete_files([File|Files]) ->
 setup_() ->
   lager:start(),
   media:start(),
+  application:start(exec),
   file:make_dir(?PATH("tmp")).
 
 cleanup_(_) ->
@@ -69,6 +55,7 @@ cleanup_(_) ->
     Files4 when is_list(Files4) -> delete_files(Files4);
     _ -> false
   end,
+  application:stop(exec),
   application:stop(lager).
 
 video_mp4_test_() ->
@@ -129,6 +116,17 @@ audio_to_ogg_test_() ->
     [
       {timeout, ?TIMEOUT, [wav_to_ogg_t_()]},
       {timeout, ?TIMEOUT, [mp3_to_ogg_t_()]}
+    ]
+  ).
+
+video_probe_test_() ->
+  ?setup(
+    [
+      {timeout, ?TIMEOUT, [video_probe_flv_speex_t_()]},
+      {timeout, ?TIMEOUT, [video_probe_screen_share_t_()]},
+      {timeout, ?TIMEOUT, [video_probe_mov_t_()]},
+      {timeout, ?TIMEOUT, [video_probe_aac_h264_t_()]},
+      {timeout, ?TIMEOUT, [video_probe_avi_t_()]}
     ]
   ).
 
@@ -282,4 +280,29 @@ mp3_to_ogg_t_() ->
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(1, length(Stat#job_stats.result_path))
+  end.
+
+video_probe_flv_speex_t_() ->
+  fun() ->
+    ?assertMatch(#video_info{audio_codec="libspeex", video_codec="h264"}, video_probe:info(?PATH("stream_1.flv")))
+  end.
+
+video_probe_screen_share_t_() ->
+  fun() ->
+    ?assertMatch(#video_info{video_codec="flashsv2", pixel_format="bgr24"}, video_probe:info(?PATH("stream_2.flv")))
+  end.
+
+video_probe_mov_t_() ->
+  fun() ->
+    ?assertMatch(#video_info{video_codec="mjpeg"}, video_probe:info(?PATH("v1.MOV")))
+  end.
+
+video_probe_aac_h264_t_() ->
+  fun() ->
+    ?assertMatch(#video_info{video_codec="h264", audio_codec="aac"}, video_probe:info(?PATH("v2.mp4")))
+  end.
+
+video_probe_avi_t_() ->
+  fun() ->
+    ?assertMatch(#video_info{video_codec="mpeg4"}, video_probe:info(?PATH("v3.avi")))
   end.
