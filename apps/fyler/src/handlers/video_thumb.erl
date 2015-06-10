@@ -25,7 +25,7 @@ run(#file{tmp_path = Path, name = Name, dir = Dir}, Opts) ->
 
   ?D({"command", Command}),
 
-  Data = exec(Command),
+  Data = exec_command:run(Command, stderr),
   case filelib:wildcard("*_poster.png", Dir) of
     [] ->
       {error,Data};
@@ -38,16 +38,4 @@ run(#file{tmp_path = Path, name = Name, dir = Dir}, Opts) ->
           ?E({image_thumb_failed, Else}),
           {ok, #job_stats{time_spent = ulitos:timestamp() - Start, result_path = [Result]}}
       end
-  end.
-
-exec(Command) ->
-  {ok, _, _} = exec:run(Command, [stderr, monitor]),
-  loop(<<>>).
-
-loop(Data) ->
-  receive
-    {stderr, _, Part} ->
-      loop(<<Data/binary, Part/binary>>);
-    _ ->
-      Data
   end.

@@ -23,7 +23,7 @@ run(#file{tmp_path = Path, dir = Dir}, _Opts) ->
 
   ?D({command, Command}),
 
-  Data = exec(Command),
+  Data = exec_command:run(Command),
   RootDir = detect_root(OutDir),
   ?D({archive_root, RootDir}),
   FullRootDir = filename:join(Dir,RootDir),
@@ -51,16 +51,4 @@ detect_root(Dir) ->
   case lists:filter(fun(D) -> filelib:is_dir(filename:join(Dir, D)) end, SubDirs) of
     [SubDir] -> filename:join("out", SubDir);
     _Else -> "out"
-  end.
-
-exec(Command) ->
-  {ok, _, _} = exec:run(Command, [stdout, monitor]),
-  loop(<<>>).
-
-loop(Data) ->
-  receive
-    {stdout, _, Part} ->
-      loop(<<Data/binary, Part/binary>>);
-    _ ->
-      Data
   end.

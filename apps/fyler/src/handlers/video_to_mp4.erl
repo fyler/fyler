@@ -31,7 +31,7 @@ run(#file{tmp_path = Path, name = Name, extension = Ext, dir = Dir},Opts) ->
   Command = ?COMMAND(Path, MP4, info_to_params(Info)),
 
   ?D({"command", Command}),
-  Data = exec(Command),
+  Data = Data = exec_command:run(Command, stderr),
   case filelib:wildcard("*.mp4", Dir) of
     [] ->
       {error, Data};
@@ -40,18 +40,6 @@ run(#file{tmp_path = Path, name = Name, extension = Ext, dir = Dir},Opts) ->
       IsThumb = proplists:get_value(thumb, Opts, true),
       Thumbs = thumbs(#file{tmp_path = MP4, name = Name, dir = Dir}, Opts, IsThumb),
       {ok, #job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)|Thumbs]}}
-  end.
-
-exec(Command) ->
-  {ok, _, _} = exec:run(Command, [stderr, monitor]),
-  loop(<<>>).
-
-loop(Data) ->
-  receive
-    {stderr, _, Part} ->
-      loop(<<Data/binary, Part/binary>>);
-    _ ->
-      Data
   end.
 
 thumbs(_, _, false) ->

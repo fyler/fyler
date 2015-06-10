@@ -13,9 +13,6 @@
 start_link(Task, Stats) ->
   proc_lib:start_link(?MODULE, init_server, [Task, Stats]).
 
-init_server(#task{callback = undefined}, _Stats) ->
-  exit(normal);
-
 init_server(#task{callback = Callback} = Task, Stats) ->
   proc_lib:init_ack({ok, self()}),
   Options = [

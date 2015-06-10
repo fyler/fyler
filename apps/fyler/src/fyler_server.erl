@@ -428,6 +428,9 @@ send_to_manager(#task{category = Category} = Task, State) ->
 
 -spec send_response(task(), stats()) -> ok.
 
+send_response(#task{callback = undefined}, _Stats) ->
+  ok;
+
 send_response(Task, Stats) ->
   fyler_sup:start_callback_worker(Task, Stats).
 

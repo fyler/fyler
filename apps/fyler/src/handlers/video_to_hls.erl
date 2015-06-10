@@ -25,22 +25,10 @@ run(#file{tmp_path = Path, name = Name, dir = Dir}, _Opts) ->
   Command = ?COMMAND(Path, M3U, video_to_mp4:info_to_params(Info)),
 
   ?D({"command", Command}),
-  Data = exec(Command),
+  Data = exec_command:run(Command, stderr),
   case filelib:wildcard("*.m3u8", Dir) of
     [] -> {error, Data};
     _List ->
       Result = Name ++ ".m3u8",
       {ok, #job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)]}}
-  end.
-
-exec(Command) ->
-  {ok, _, _} = exec:run(Command, [stderr, monitor]),
-  loop(<<>>).
-
-loop(Data) ->
-  receive
-    {stderr, _, Part} ->
-      loop(<<Data/binary, Part/binary>>);
-    _ ->
-      Data
   end.
