@@ -18,6 +18,7 @@
 
 -record(state, {
   method :: get | post | delete,
+  qs :: undefined | proplists:proplist(),
   id :: non_neg_integer(),
   status :: queued | progress | success | abort
 }).
@@ -54,16 +55,17 @@ is_authorized(Req, #state{method = get} = State) ->
   {Reply, Req, State};
 
 is_authorized(Req, State) ->
-  Reply = case cowboy_req:body_qs(Req) of
-            {ok, X, _} ->
+  {Reply, NewState} = case cowboy_req:body_qs(Req) of
+            {ok, X, Req_} ->
               ?D({req_data,X}),
-              case proplists:get_value(<<"fkey">>,X) of
+              Reply_ = case proplists:get_value(<<"fkey">>,X) of
                 undefined -> {false,<<"">>};
                 Key -> fyler_server:is_authorized(Key)
-              end;
-            _ -> {false,<<"">>}
+              end,
+              {Reply_, State#state{qs = X}};
+            _ -> {{false,<<"">>}, State}
           end,
-  {Reply, Req, State}.
+  {Reply, Req, NewState}.
 
 content_types_accepted(Req, State) ->
   {[{'*',process_post}],Req,State}.
@@ -86,24 +88,18 @@ get_task_status(Req, #state{status = Status} = State) ->
   {jiffy:encode({[{status, Status}]}), cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req), State}.
 
 
-process_post(Req, State) ->
-  case cowboy_req:body_qs(Req) of
-    {ok, X, _} ->
-      case validate_post_data(X) of
-        [Url, Type, Options] -> 
-          ?D({post_data, Url, Type}), 
-          case fyler_server:run_task(Url, Type, Options) of
-            {ok, Id} ->
-              Resp_ = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req),
-              {true, cowboy_req:set_resp_body(jiffy:encode({[{id, Id}]}), Resp_), State};
-            _ ->
-              {stop, cowboy_req:reply(403,Req), State}
-          end;
-        false -> ?D(<<"wrong post data">>),
+process_post(Req, #state{qs = X} = State) ->
+  case validate_post_data(X) of
+    [Url, Type, Options] -> 
+      ?D({post_data, Url, Type}), 
+      case fyler_server:run_task(Url, Type, Options) of
+        {ok, Id} ->
+          Resp_ = cowboy_req:set_resp_header(<<"content-type">>, <<"application/json">>, Req),
+          {true, cowboy_req:set_resp_body(jiffy:encode({[{id, Id}]}), Resp_), State};
+        _ ->
           {stop, cowboy_req:reply(403,Req), State}
       end;
-    Else -> 
-      ?D({<<"no data">>,Else}),
+    false -> ?D(<<"wrong post data">>),
       {stop, cowboy_req:reply(403,Req), State}
   end.
 
