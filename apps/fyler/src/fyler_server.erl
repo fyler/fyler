@@ -520,7 +520,7 @@ parse_url(Path, Buckets) ->
   {ok, Re} = re:compile("[^:]+://.+/([^/]+)\\.([^\\.]+)"),
   case re:run(Path, Re, [{capture, all, list}]) of
     {match, [_, Name, Ext]} ->
-      {ok, Re2} = re:compile("[^:]+://([^\\.]+)\\.s3[^\\.]*\\.amazonaws\\.com/(.+)"),
+      {ok, Re2} = re:compile("[^:]+://([^/]+)\\.s3[^\\.]*\\.amazonaws\\.com/(.+)"),
       {IsAws, Bucket,Path2} = case re:run(Path, Re2, [{capture, all, list}]) of
         {match, [_, Bucket_, Path_]} ->
           {true, Bucket_, Path_};
