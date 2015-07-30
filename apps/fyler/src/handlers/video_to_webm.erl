@@ -86,7 +86,7 @@ video_codec("vp8","") ->
   " -c:v copy ";
 
 video_codec(_,_) ->
-  " -c:v libvpx -quality good -cpu-used 1 -qmin 10 -qmax 42 -threads 4 ".
+  " -c:v libvpx -quality good -cpu-used 4 -qmin 10 -qmax 42 -threads 4 ".
 
 pixel_format("yuv420p") ->
   "";

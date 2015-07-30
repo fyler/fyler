@@ -25,7 +25,7 @@ delete_files([File|Files]) ->
 
 setup_() ->
   lager:start(),
-  application:start(exec),
+  ulitos_app:ensure_started(exec),
   file:make_dir(?PATH("tmp")).
 
 cleanup_(_) ->

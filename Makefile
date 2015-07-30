@@ -16,15 +16,15 @@ ifndef PKG_CONFIG_PATH
 	export PKG_CONFIG_PATH = /usr/local/ffmpeg_build/lib/pkgconfig/
 endif
 
-all: deps update_deps compile
+all: get-deps update-deps compile
 
 update:
 	git pull
 
-deps:
+get-deps:
 	@$(REBAR) get-deps
 
-update_deps:
+update-deps:
 	@$(REBAR) update-deps
 
 compile:
