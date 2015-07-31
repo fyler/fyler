@@ -6,7 +6,7 @@ run(Command) ->
   run(Command, stdout).
 
 run(Command, Out) ->
-  {ok, _, _} = exec:run(Command, [Out, monitor]),
+  {ok, _, _} = exec:run(["/bin/bash", "-c", Command], [Out, monitor]),
   loop(<<>>, Out).
 
 loop(Data, Out) ->
