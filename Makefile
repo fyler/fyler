@@ -21,6 +21,9 @@ all: get-deps update-deps compile
 update:
 	git pull
 
+get-lager:
+	@$(REBAR) -C rebar_lager.config get-deps
+
 get-deps:
 	@$(REBAR) get-deps
 
@@ -68,7 +71,7 @@ run-pool-video:
 	ERL_LIBS=apps:deps erl -args_file files/vm.args.video.sample -sasl errlog_type error -boot start_sasl -s $(APPNAME) -embedded -config files/app.video.config  -fyler role pool
 
 clean-tmp:
-	cd tmp && ls | xargs rm && cd ..
+	(cd tmp && ls | xargs rm -R)
 
 version:
 	echo "VERSION=$(VER)" > version.mk
