@@ -16,7 +16,7 @@ category() ->
 
 run(File) -> run(File, []).
 
-run(#file{tmp_path = Path, name = Name, dir = Dir}, _Opts) ->
+run(#file{tmp_path = Path, name = Name, dir = Dir} = File, Opts) ->
   Start = ulitos:timestamp(),
   M3U = filename:join(Dir, Name ++ ".m3u8"),
 
@@ -30,5 +30,19 @@ run(#file{tmp_path = Path, name = Name, dir = Dir}, _Opts) ->
     [] -> {error, Data};
     _List ->
       Result = Name ++ ".m3u8",
-      {ok, #job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)]}}
+      IsThumb = proplists:get_value(thumb, Opts, true),
+      Thumbs = thumbs(File, Opts, IsThumb),
+      {ok, #job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)|Thumbs]}}
+  end.
+
+thumbs(_, _, false) ->
+  [];
+
+thumbs(#file{tmp_path = MP4, name = Name, dir = Dir}, Opts, true) ->
+  case video_thumb:run(#file{tmp_path = MP4, name = Name, dir = Dir}, Opts) of
+    {ok,#job_stats{result_path = Thumbs}} ->
+      Thumbs;
+    _Else ->
+      ?E({video_hls_thumbs_failed, _Else}),
+      []
   end.

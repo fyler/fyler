@@ -17,7 +17,7 @@ category() ->
 
 run(File) -> run(File,[]).
 
-run(#file{tmp_path = Path, name = Name, extension=Ext, dir = Dir},Opts) ->
+run(#file{tmp_path = Path, name = Name, extension=Ext, dir = Dir} = File, Opts) ->
   Start = ulitos:timestamp(),
 
   NewName = if Ext =:= "webm"
@@ -38,7 +38,7 @@ run(#file{tmp_path = Path, name = Name, extension=Ext, dir = Dir},Opts) ->
     _List ->
       Result = NewName ++ ".webm",
       IsThumb = proplists:get_value(thumb, Opts, true),
-      Thumbs = thumbs(#file{tmp_path = Webm, name = Name, dir = Dir}, Opts, IsThumb),
+      Thumbs = thumbs(File, Opts, IsThumb),
       {ok, #job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)|Thumbs]}}
   end.
 

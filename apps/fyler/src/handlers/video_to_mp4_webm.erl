@@ -12,11 +12,11 @@ category() ->
 
 run(File) -> run(File,[]).
 
-run(#file{dir = Dir} = File, Opts) ->
+run(#file{} = File, Opts) ->
   Start = ulitos:timestamp(),
   case  video_to_mp4:run(File, [{thumb, false} | Opts]) of
     {ok, #job_stats{result_path = [Mp4]}} ->
-      case video_to_webm:run(File#file{tmp_path = filename:join(Dir, binary_to_list(Mp4))}, Opts) of
+      case video_to_webm:run(File, Opts) of
         {ok, #job_stats{result_path = WebmResult}} ->
           {ok, #job_stats{time_spent = ulitos:timestamp() - Start, result_path = [Mp4 | WebmResult]}};
         {error, Reason} ->

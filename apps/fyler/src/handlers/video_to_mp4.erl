@@ -16,7 +16,7 @@ category() ->
 
 run(File) -> run(File, []).
 
-run(#file{tmp_path = Path, name = Name, extension = Ext, dir = Dir},Opts) ->
+run(#file{tmp_path = Path, name = Name, extension = Ext, dir = Dir} = File,Opts) ->
   Start = ulitos:timestamp(),
 
   NewName = if Ext =:= "mp4"
@@ -38,7 +38,7 @@ run(#file{tmp_path = Path, name = Name, extension = Ext, dir = Dir},Opts) ->
     _List ->
       Result = NewName++".mp4",
       IsThumb = proplists:get_value(thumb, Opts, true),
-      Thumbs = thumbs(#file{tmp_path = MP4, name = Name, dir = Dir}, Opts, IsThumb),
+      Thumbs = thumbs(File, Opts, IsThumb),
       {ok, #job_stats{time_spent = ulitos:timestamp() - Start, result_path = [list_to_binary(Result)|Thumbs]}}
   end.
 
@@ -88,7 +88,7 @@ video_codec([],_) ->
   " -vn ";
 
 video_codec("h264","") ->
-  " -c:v copy ";
+  " -c:v copy -bsf:v h264_mp4toannexb ";
 
 video_codec(_,_) ->
   " -c:v libx264 -profile:v baseline -preset fast -threads 0 ".

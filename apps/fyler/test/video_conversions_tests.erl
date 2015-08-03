@@ -207,7 +207,7 @@ mov_to_hls_t_() ->
     Res = video_to_hls:run(#file{tmp_path = ?PATH("v1.MOV"), name = "v1", dir = ?PATH("")}),
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
-    ?assertEqual(1, length(Stat#job_stats.result_path))
+    ?assertEqual(3, length(Stat#job_stats.result_path))
   end.
 
 mp4_to_hls_t_() ->
@@ -215,7 +215,7 @@ mp4_to_hls_t_() ->
     Res = video_to_hls:run(#file{tmp_path = ?PATH("v2.mp4"), name = "v2", dir = ?PATH("")}),
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
-    ?assertEqual(1, length(Stat#job_stats.result_path))
+    ?assertEqual(3, length(Stat#job_stats.result_path))
   end.
 
 avi_to_hls_t_() ->
@@ -223,7 +223,7 @@ avi_to_hls_t_() ->
     Res = video_to_hls:run(#file{tmp_path = ?PATH("v3.avi"), name = "v3", dir = ?PATH("")}),
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
-    ?assertEqual(1, length(Stat#job_stats.result_path))
+    ?assertEqual(3, length(Stat#job_stats.result_path))
   end.
 
 av_rec_to_hls_t_() ->
