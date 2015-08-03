@@ -50,7 +50,7 @@ thumbs(#file{tmp_path = Webm, name = Name, dir = Dir}, Opts, true) ->
     {ok,#job_stats{result_path = Thumbs}} ->
       Thumbs;
     _Else ->
-      ?E({video_webm_failed, _Else}),
+      ?E({video_webm_thumbs_failed, _Else}),
       []
   end.
 

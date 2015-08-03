@@ -10,7 +10,7 @@
 
 info(Path) ->
   Command = ?CMD(Path),
-
+  ?D({"command", Command}),
   true = filelib:is_file(Path),
   case exec_command:run_link(Command, [stdout, monitor]) of
     {error, Error} ->
