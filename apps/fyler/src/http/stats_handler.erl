@@ -7,4 +7,4 @@
 
 init(Req, State) ->
   HTML = jiffy:encode(fyler_server:current_tasks()),
-  {ok, cowboy_req:reply(200, [], HTML, Req), State}.
+  {true, cowboy_req:reply(200, [], HTML, Req), State}.
