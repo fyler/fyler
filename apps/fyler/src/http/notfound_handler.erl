@@ -8,4 +8,4 @@
 init(Req, Opts) ->
   ?D({route_not_found}),
   Body = <<"<h1>404 Page Not Found</h1>">>,
-  {false, cowboy_req:reply(404, [], Body, Req), Opts}.
+  {ok, cowboy_req:reply(404, [], Body, Req), Opts}.
