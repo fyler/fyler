@@ -41,7 +41,6 @@
 %% gen_server callbacks
 -record(state, {
   cowboy_pid :: pid(),
-  aws_bucket :: string(),
   aws_dir :: string(),
   managers = #{} :: #{atom() => pid()}
 }).
@@ -71,16 +70,14 @@ init(_Args) ->
     {error, {already_started, Pid_}} -> Pid_
   end,
 
-  Buckets = ?Config(aws_s3_bucket, []),
-
   AwsDir = ?Config(aws_dir, "fyler/"),
 
-  ?I({server_start, AwsDir, Buckets}),
+  ?I({server_start, AwsDir}),
 
   %% check db for task in progress and restart them
   self() ! check_pending_tasks,
 
-  {ok, #state{cowboy_pid = Http, aws_bucket = Buckets, aws_dir = AwsDir}}.
+  {ok, #state{cowboy_pid = Http, aws_dir = AwsDir}}.
 
 
 %% @doc
@@ -233,8 +230,8 @@ cancel_task(Id) ->
   gen_server:call(fyler_server, {cancel_task, Id}).
 
 
-handle_call({run_task, URL, Type, Options}, _From, #state{aws_bucket = Buckets, aws_dir = AwsDir} = State) ->
-  case build_task(URL, Type, Options, false, Buckets, AwsDir) of
+handle_call({run_task, URL, Type, Options}, _From, #state{aws_dir = AwsDir} = State) ->
+  case build_task(URL, Type, Options, false, AwsDir) of
     #task{id = Id} = Task ->
       NewState = send_to_manager(Task, State),
       {reply, {ok, Id}, NewState};
@@ -453,8 +450,8 @@ start_http_server() ->
   ).
 
 
-build_task(URL, Type, Options, OldId, Buckets, AwsDir) ->
-  case parse_url(URL, Buckets) of
+build_task(URL, Type, Options, OldId, AwsDir) ->
+  case parse_url(URL) of
     {true, Bucket, Path, Name, Ext} ->
       %% generate temp uniq name
       UniqueDir = uniqueId() ++ "_" ++ Name,
@@ -495,7 +492,7 @@ build_task(URL, Type, Options, OldId, Buckets, AwsDir) ->
         _ ->
           pg_cli:equery("update tasks set status = 'failed', error_msg = 'bad_url' where id = " ++ integer_to_list(OldId))
       end,
-      ?E({bad_url, URL, Buckets}),
+      ?E({bad_url, URL}),
       false
   end.
 
@@ -505,18 +502,18 @@ build_task(URL, Type, Options, OldId, Buckets, AwsDir) ->
 
 rebuild_tasks([], State) -> ?I("All tasks rebuilt."), State;
 
-rebuild_tasks([{Url, Type, Options, Id}=T|Tasks], #state{aws_bucket = Buckets, aws_dir = AwsDir} = State) ->
+rebuild_tasks([{Url, Type, Options, Id}=T|Tasks], #state{aws_dir = AwsDir} = State) ->
   ?D({rebuilding_task, T}),
-  Task = build_task(Url, Type, Options, Id, Buckets, AwsDir),
+  Task = build_task(Url, Type, Options, Id, AwsDir),
   rebuild_tasks(Tasks, send_to_manager(Task, State)).
 
 
 %%% @doc
 %%% @end
 
--spec parse_url(string(),list(string())) -> {IsAws::boolean(),Bucket::string()|boolean(), Path::string(),Name::string(),Ext::string()}.
+-spec parse_url(string()) -> {IsAws::boolean(),Bucket::string()|boolean(), Path::string(),Name::string(),Ext::string()}.
 
-parse_url(Path, Buckets) ->
+parse_url(Path) ->
   {ok, Re} = re:compile("[^:]+://.+/([^/]+)\\.([^\\.]+)"),
   case re:run(Path, Re, [{capture, all, list}]) of
     {match, [_, Name, Ext]} ->
@@ -532,16 +529,12 @@ parse_url(Path, Buckets) ->
       end,
 
       case IsAws of
-        false -> {false,false,Path,Name,Ext};
-        _ -> case lists:member(Bucket,Buckets) of
-               true -> {true,Bucket,Bucket++"/"++Path2,Name,Ext};
-               false -> {false,false,Path,Name,Ext}
-             end
+        false -> {false, false, Path, Name, Ext};
+        _ -> {true, Bucket, Bucket++"/"++Path2, Name, Ext}
       end;
     _ ->
       false
   end.
-
 
 parse_url_dir(Path, Bucket) ->
   {ok, Re2} = re:compile("[^:]+://" ++ Bucket ++ "\\.s3\\.amazonaws\\.com/(.+)"),
@@ -568,15 +561,14 @@ uniqueId() ->
 -define(setup2(F), {setup, fun setup2_/0, fun cleanup_/1, F}).
 
 path_to_test() ->
-  ?assertEqual({false, false, "http://qwe/data.ext", "data", "ext"}, parse_url("http://qwe/data.ext", [])),
-  ?assertEqual({false, false, "http://dev2.teachbase.ru/app/cpi.txt", "cpi", "txt"}, parse_url("http://dev2.teachbase.ru/app/cpi.txt", [])),
-  ?assertEqual({false, false, "https://qwe/qwe/qwr/da.ta.ext", "da.ta", "ext"}, parse_url("https://qwe/qwe/qwr/da.ta.ext", ["qwo"])),
-  ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/da.ta.ext", ["qwe"])),
-  ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("https://s3-eu-west-1.amazonaws.com/qwe/da.ta.ext", ["qwe"])),
-  ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3.amazonaws.com/da.ta.ext", ["qwe", "qwo"])),
-  ?assertEqual({true, "qwe", "qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext", ["qwe"])),
-  ?assertEqual({false, false, "http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext", ["q"])),
-  ?assertEqual(false, parse_url("qwr/data.ext", [])).
+  ?assertEqual({false, false, "http://qwe/data.ext", "data", "ext"}, parse_url("http://qwe/data.ext")),
+  ?assertEqual({false, false, "http://dev2.teachbase.ru/app/cpi.txt", "cpi", "txt"}, parse_url("http://dev2.teachbase.ru/app/cpi.txt")),
+  ?assertEqual({false, false, "https://qwe/qwe/qwr/da.ta.ext", "da.ta", "ext"}, parse_url("https://qwe/qwe/qwr/da.ta.ext")),
+  ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/da.ta.ext")),
+  ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("https://s3-eu-west-1.amazonaws.com/qwe/da.ta.ext")),
+  ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3.amazonaws.com/da.ta.ext")),
+  ?assertEqual({true, "qwe", "qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext")),
+  ?assertEqual(false, parse_url("qwr/data.ext")).
 
 
 dir_url_test() ->
@@ -725,7 +717,7 @@ run_task_t_(_) ->
 
 task_params_t_(_) ->
   fyler_server:run_task("http://test.s3.amazonaws.com/record/stream.flv","recording_to_hls",[{stream_type,<<"media">>},{target_dir,<<"http://test.s3.amazonaws.com/record/stream/">>}, {callback,<<"http://callback">>}]),
-  Tasks = gen_server:call(fyler_server, tasks),
+  Tasks = fyler_server:current_tasks(),
   {{value,#task{file=File, category=Category, callback=Callback}},_} = fyler_queue:out(maps:get(video,Tasks)),
   [
     ?_assertMatch(#file{target_dir= "record/stream/", bucket="test", extension="flv", name="stream", url="test/record/stream.flv"},File),
@@ -734,7 +726,7 @@ task_params_t_(_) ->
   ].
 
 rebuild_tasks_t_(_) ->
-  Tasks = gen_server:call(fyler_server, tasks),
+  Tasks = fyler_server:current_tasks(),
   {{value,#task{file=File, category=Category, callback=Callback}},_} = fyler_queue:out(maps:get(test,Tasks)),
   [
     ?_assertMatch(#file{bucket="test", name="test"},File),
