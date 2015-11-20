@@ -84,11 +84,8 @@ audio_codec(_) ->
 video_codec(undefined,_) ->
   " -vn ";
 
-video_codec([],_) ->
+video_codec([], _) ->
   " -vn ";
-
-video_codec("h264","") ->
-  " -c:v copy -bsf:v h264_mp4toannexb ";
 
 video_codec(_,_) ->
   " -c:v libx264 -profile:v baseline -preset fast -threads 0 ".
