@@ -25,7 +25,7 @@ delete_files([File|Files]) ->
 
 setup_() ->
   lager:start(),
-  ulitos_app:ensure_started(exec),
+  ulitos_app:ensure_started(erlexec),
   file:make_dir(?PATH("tmp")).
 
 cleanup_(_) ->
@@ -50,7 +50,7 @@ cleanup_(_) ->
     Files4 when is_list(Files4) -> delete_files(Files4);
     _ -> false
   end,
-  application:stop(exec),
+  application:stop(erlexec),
   application:stop(lager).
 
 
@@ -77,22 +77,22 @@ doc_swftools_test_() ->
 
 doc_pdftk_test_()->
   ?setup(
-    [ 
-      {timeout, ?TIMEOUT, [pdf_split_t_()]}  
+    [
+      {timeout, ?TIMEOUT, [pdf_split_t_()]}
     ]
   ).
 
 doc_unpack_test_()->
   ?setup(
-    [ 
+    [
       {timeout, ?TIMEOUT, [zip_unpack_t_("20", "")]}
     ]
   ).
 
 doc_unpack2_test_()->
   ?setup(
-    [ 
-      {timeout, ?TIMEOUT, [zip_unpack_t_("21", "scorm")]}      
+    [
+      {timeout, ?TIMEOUT, [zip_unpack_t_("21", "scorm")]}
     ]
   ).
 
@@ -102,7 +102,7 @@ doc_to_pdf_t_() ->
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(2, length(Stat#job_stats.result_path))
-  end.     
+  end.
 
 doc_to_pdf_2_t_() ->
   fun() ->
@@ -110,7 +110,7 @@ doc_to_pdf_2_t_() ->
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(2, length(Stat#job_stats.result_path))
-  end.     
+  end.
 
 xls_to_pdf_t_() ->
   fun() ->
@@ -118,7 +118,7 @@ xls_to_pdf_t_() ->
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(2, length(Stat#job_stats.result_path))
-  end.    
+  end.
 
 xls_to_pdf_2_t_() ->
   fun() ->
@@ -126,7 +126,7 @@ xls_to_pdf_2_t_() ->
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(2, length(Stat#job_stats.result_path))
-  end.  
+  end.
 
 ppt_to_pdf_t_() ->
   fun() ->
@@ -134,7 +134,7 @@ ppt_to_pdf_t_() ->
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(2, length(Stat#job_stats.result_path))
-  end.     
+  end.
 
 doc_to_pdf_swf_t_() ->
   fun() ->
@@ -142,7 +142,7 @@ doc_to_pdf_swf_t_() ->
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(3, length(Stat#job_stats.result_path))
-  end.  
+  end.
 
 doc_to_pdf_thumbs_t_() ->
   fun() ->
@@ -150,7 +150,7 @@ doc_to_pdf_thumbs_t_() ->
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(2, length(Stat#job_stats.result_path))
-  end.  
+  end.
 
 pdf_split_t_() ->
   fun() ->
@@ -169,7 +169,7 @@ pdf_to_swf_t_() ->
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(1, length(Stat#job_stats.result_path))
-  end. 
+  end.
 
 pdf_to_swf_thumbs_t_() ->
   fun() ->
@@ -177,13 +177,12 @@ pdf_to_swf_thumbs_t_() ->
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(2, length(Stat#job_stats.result_path))
-  end. 
+  end.
 
 zip_unpack_t_(Name, To) ->
   fun() ->
-
     Res = unpack_html:run(#file{tmp_path = ?PATH(Name++".zip"), name = Name, dir = ?PATH(To), extension = "zip"}),
     ?assertMatch({ok,#job_stats{}}, Res),
     {_, Stat} = Res,
     ?assertEqual(1, length(Stat#job_stats.result_path))
-  end. 
+  end.

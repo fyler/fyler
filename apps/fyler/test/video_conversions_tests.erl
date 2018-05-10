@@ -26,7 +26,7 @@ delete_files([File|Files]) ->
 setup_() ->
   lager:start(),
   media:start(),
-  ulitos_app:ensure_started(exec),
+  ulitos_app:ensure_started(erlexec),
   file:make_dir(?PATH("tmp")).
 
 cleanup_(_) ->
@@ -55,7 +55,7 @@ cleanup_(_) ->
     Files4 when is_list(Files4) -> delete_files(Files4);
     _ -> false
   end,
-  application:stop(exec),
+  application:stop(erlexec),
   application:stop(lager).
 
 video_mp4_test_() ->

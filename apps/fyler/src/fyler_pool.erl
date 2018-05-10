@@ -58,7 +58,7 @@ init(_Args) ->
 
   self() ! connect_to_server,
 
-  ulitos_app:ensure_started(exec),
+  ulitos_app:ensure_started(erlexec),
   ulitos_app:ensure_loaded(?Handlers),
 
   Category = ?Config(category, undefined),
