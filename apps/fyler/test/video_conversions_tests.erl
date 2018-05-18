@@ -284,7 +284,7 @@ mp3_to_ogg_t_() ->
 
 video_probe_flv_speex_t_() ->
   fun() ->
-    ?assertMatch(#video_info{audio_codec="libspeex", video_codec="h264"}, video_probe:info(?PATH("stream_1.flv")))
+    ?assertMatch(#video_info{audio_codec="speex", video_codec="h264"}, video_probe:info(?PATH("stream_1.flv")))
   end.
 
 video_probe_screen_share_t_() ->
