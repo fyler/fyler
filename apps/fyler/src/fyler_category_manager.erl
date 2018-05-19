@@ -4,7 +4,6 @@
 -include("../include/log.hrl").
 -include("fyler.hrl").
 
--define(REGEX, "\"PrivateIpAddress\": \"(?<ip>[^\"]*)\"").
 -define(NODE(Category, Ip), list_to_atom(lists:flatten(io_lib:format("fyler_~p_pool@~s", [Category, Ip])))).
 -define(TIMEOUT, 60000).
 
@@ -159,13 +158,13 @@ start_(start, #state{category = Category} = State) ->
       true -> pools;
       false -> zero
     end,
-
   InstanceList = maps:get(instances, ?Config(Category, #{}), []),
-  {ok, Re} = re:compile(?REGEX),
+  CloudType = ?Config(cloud_type, undefined),
+  {ok, Re} = re:compile(fyler_cloud:re_pattern(CloudType)),
   IdToNode =
     fun
       (Id, {Map, Nodes}) ->
-        case re:run(aws_cli:instance(Id), Re, [{capture, [ip], list}]) of
+        case re:run(fyler_cloud:instance(CloudType, Id), Re, [{capture, [ip], list}]) of
           {match, [Ip]} ->
             Node = ?NODE(Category, Ip),
             {maps:put(Node, Id, Map), [Node | Nodes]};
@@ -606,7 +605,7 @@ stop_pool(Pool, NodeToId) ->
     error ->
       ok;
     {ok, Id} ->
-      aws_cli:stop_instance(Id)
+      fyler_cloud:stop_instance(?Config(cloud_type, undefined), Id)
   end.
 
 start_pool(Pool, NodeToId) ->
@@ -614,7 +613,7 @@ start_pool(Pool, NodeToId) ->
     error ->
       ok;
     {ok, Id} ->
-      aws_cli:start_instance(Id)
+      fyler_cloud:start_instance(?Config(cloud_type, undefined), Id)
   end.
 
 -ifdef(TEST).

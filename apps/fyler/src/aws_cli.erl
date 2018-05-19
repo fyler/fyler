@@ -5,7 +5,7 @@
 -include("../include/log.hrl").
 
 %% API
--export([copy_object/2, copy_object/3, copy_folder/2, copy_folder/3, dir_exists/1, instance/1, start_instance/1, stop_instance/1]).
+-export([copy_object/2, copy_object/3, copy_folder/2, copy_folder/3, dir_exists/1, instance/1, start_instance/1, stop_instance/1, ip_address_pattern/0]).
 
 
 copy_object(From,To) ->
@@ -30,6 +30,9 @@ start_instance(Id) ->
 
 stop_instance(Id) ->
   os:cmd(io_lib:format("aws ec2 stop-instances --instance-ids ~s", [Id])).
+
+ip_address_pattern() ->
+  "\"PrivateIpAddress\": \"(?<ip>[^\"]*)\"".
 
 %% @doc
 %% Check whether s3 dir prefix exists.

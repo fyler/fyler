@@ -2,6 +2,8 @@
 {server_name, 'fyler@127.0.0.1'}.
 {storage_dir,"ff/"}.
 {http_port,8008}.
+{cloud_type, aws | openstack}.
+{cloud_name, infra}.
 {aws_s3_bucket, ["tbconvert"]}.
 {aws_dir,"ff/"}.
 {pg_host,"127.0.0.1"}.
