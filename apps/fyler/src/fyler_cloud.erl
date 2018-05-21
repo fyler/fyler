@@ -4,28 +4,12 @@
 -include("../include/log.hrl").
 
 %% API
--export([instance/2, start_instance/2, stop_instance/2, re_pattern/1]).
+-export([cloud_handler/0]).
 
-instance(CloudType, Id) ->
+cloud_handler() ->
+  CloudType = maps:get(type, ?Config(cloud_options, aws)),
   case CloudType of
-    openstack -> openstack_cli:instance(Id);
-    _ -> aws_cli:instance(Id)
-  end.
-
-start_instance(CloudType, Id) ->
-  case CloudType of
-    openstack -> openstack_cli:start_instance(Id);
-    _ -> aws_cli:start_instance(Id)
-  end.
-
-stop_instance(CloudType, Id) ->
-  case CloudType of
-    openstack -> openstack_cli:stop_instance(Id);
-    _ -> aws_cli:stop_instance(Id)
-  end.
-
-re_pattern(CloudType) ->
-  case CloudType of
-    openstack -> openstack_cli:ip_address_pattern();
-    _ -> aws_cli:ip_address_pattern()
+    openstack -> openstack_cli;
+    aws -> aws_cli;
+    _ -> ?E({not_implemented, CloudType})
   end.

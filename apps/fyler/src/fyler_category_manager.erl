@@ -140,6 +140,8 @@ tasks(Event, #state{category = Category} = State) ->
 
 start_(start, #state{category = Category} = State) ->
   Priorities = maps:get(priorities, ?Config(Category, #{}), #{}),
+  CloudHandler = fyler_cloud:cloud_handler(),
+  CloudOptions = ?Config(cloud_options, #{}),
   FreeNodes =
     fun
       (#pool{node = Node, enabled = true, category = C}, List) when C == Category -> [{Node, enabled} | List];
@@ -159,12 +161,11 @@ start_(start, #state{category = Category} = State) ->
       false -> zero
     end,
   InstanceList = maps:get(instances, ?Config(Category, #{}), []),
-  CloudType = ?Config(cloud_type, undefined),
-  {ok, Re} = re:compile(fyler_cloud:re_pattern(CloudType)),
+  {ok, Re} = re:compile(CloudHandler:ip_address_pattern()),
   IdToNode =
     fun
       (Id, {Map, Nodes}) ->
-        case re:run(fyler_cloud:instance(CloudType, Id), Re, [{capture, [ip], list}]) of
+        case re:run(CloudHandler:instance(Id, CloudOptions), Re, [{capture, [ip], list}]) of
           {match, [Ip]} ->
             Node = ?NODE(Category, Ip),
             {maps:put(Node, Id, Map), [Node | Nodes]};
@@ -605,7 +606,9 @@ stop_pool(Pool, NodeToId) ->
     error ->
       ok;
     {ok, Id} ->
-      fyler_cloud:stop_instance(?Config(cloud_type, undefined), Id)
+      CloudHandler = fyler_cloud:cloud_handler(),
+      CloudOptions = ?Config(cloud_options, #{}),
+      CloudHandler:stop_instance(Id, CloudOptions)
   end.
 
 start_pool(Pool, NodeToId) ->
@@ -613,7 +616,9 @@ start_pool(Pool, NodeToId) ->
     error ->
       ok;
     {ok, Id} ->
-      fyler_cloud:start_instance(?Config(cloud_type, undefined), Id)
+      CloudHandler = fyler_cloud:cloud_handler(),
+      CloudOptions = ?Config(cloud_options, #{}),
+      CloudHandler:start_instance(Id, CloudOptions)
   end.
 
 -ifdef(TEST).
