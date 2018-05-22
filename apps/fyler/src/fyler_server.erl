@@ -531,10 +531,8 @@ parse_url(Path) ->
       end,
 
       case IsAws of
-        false ->
-          {false, false, Path, Name, Ext};
-        _ ->
-          {true, Bucket, Bucket++"/"++Path2, Name, Ext}
+        false -> {false, false, Path, Name, Ext};
+        _ -> {true, Bucket, Bucket++"/"++Path2, Name, Ext}
       end;
     _ ->
       false
@@ -571,6 +569,7 @@ path_to_test() ->
   ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/da.ta.ext")),
   ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("https://s3-eu-west-1.amazonaws.com/qwe/da.ta.ext")),
   ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3.amazonaws.com/da.ta.ext")),
+  ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.hb.bizmrg.com/da.ta.ext")),
   ?assertEqual({true, "qwe", "qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext")),
   ?assertEqual(false, parse_url("qwr/data.ext")).
 
@@ -578,6 +577,7 @@ path_to_test() ->
 dir_url_test() ->
   ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("https://devtbupload.s3.amazonaws.com/recordings/2/record_17/stream_1/", "devtbupload")),
   ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("http://devtbupload.s3-eu-west-1.amazonaws.com/recordings/2/record_17/stream_1/", "devtbupload")),
+  ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("https://tbtest.hb.bizmrg.com/recordings/2/record_17/stream_1/", "tbtest")),
   ?assertEqual({false, "https://2.com/record_17/stream_1/"}, parse_url_dir("https://2.com/record_17/stream_1/", "devtbupload")).
 
 
