@@ -149,7 +149,7 @@ tasks_stats(Params) ->
   Order = binary_to_list(proplists:get_value(order,Params,<<"desc">>)),
 
   Query_ = [],
-  
+
   Query1 = case proplists:get_value(status,Params,false) of
     false -> Query_;
     Status -> Query_++["status='"++binary_to_list(Status)++"'"]
@@ -461,7 +461,7 @@ build_task(URL, Type, Options, OldId, AwsDir) ->
       ?D(Options),
 
       Callback = proplists:get_value(callback, Options, undefined),
-      TargetDir = 
+      TargetDir =
         case proplists:get_value(target_dir, Options) of
           undefined -> filename:join(AwsDir,UniqueDir);
           TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Bucket) of
@@ -477,7 +477,7 @@ build_task(URL, Type, Options, OldId, AwsDir) ->
       Priority_ = proplists:get_value(priority, Options, <<"low">>),
       Priority = binary_to_atom(Priority_,latin1),
 
-      Id = 
+      Id =
         case OldId of
           false ->
             {ok, 1, _, [{Id_}]} = pg_cli:equery("insert into tasks (status, file_path, task_type, url, options, priority) values ('progress', '" ++ Path ++ "', '" ++ atom_to_list(Handler) ++ "', '"++URL++"', '"++binary_to_list(fyler_utils:to_json(Options))++"', '"++atom_to_list(Priority)++"') returning id"),
@@ -518,32 +518,35 @@ parse_url(Path) ->
   {ok, Re} = re:compile("[^:]+://.+/([^/]+)\\.([^\\.]+)"),
   case re:run(Path, Re, [{capture, all, list}]) of
     {match, [_, Name, Ext]} ->
-      {ok, Re2} = re:compile("[^:]+://([^/]+)\\.s3[^\\.]*\\.amazonaws\\.com/(.+)"),
-      {IsAws, Bucket,Path2} = case re:run(Path, Re2, [{capture, all, list}]) of
-        {match, [_, Bucket_, Path_]} ->
+      {ok, Re2} = re:compile("[^:]+://([^/]+)\\.(s3|hb)[^\\.]*\\.(amazonaws|bizmrg)\\.com/(.+)"),
+      {IsAws, Bucket, Path2} = case re:run(Path, Re2, [{capture, all, list}]) of
+        {match, [_, Bucket_, _, _, Path_]} ->
           {true, Bucket_, Path_};
-        _ -> {ok, Re3} = re:compile("[^:]+://s3[^\\.]*\\.amazonaws\\.com/([^/]+)/(.+)"),
+        _ -> {ok, Re3} = re:compile("[^:]+://(s3|hb)[^\\.]*\\.(amazonaws|bizmrg)\\.com/([^/]+)/(.+)"),
           case re:run(Path, Re3, [{capture, all, list}]) of
-            {match, [_, Bucket_, Path_]} -> {true, Bucket_, Path_};
+            {match, [_, _, _, Bucket_, Path_]} ->
+              {true, Bucket_, Path_};
             _ -> {false, false, Path}
           end
       end,
 
       case IsAws of
-        false -> {false, false, Path, Name, Ext};
-        _ -> {true, Bucket, Bucket++"/"++Path2, Name, Ext}
+        false ->
+          {false, false, Path, Name, Ext};
+        _ ->
+          {true, Bucket, Bucket++"/"++Path2, Name, Ext}
       end;
     _ ->
       false
   end.
 
 parse_url_dir(Path, Bucket) ->
-  {ok, Re2} = re:compile("[^:]+://" ++ Bucket ++ "\\.s3\\.amazonaws\\.com/(.+)"),
+  {ok, Re2} = re:compile("[^:]+://" ++ Bucket ++ "\\.(s3|hb)\\.(amazonaws|bizmrg)\\.com/(.+)"),
   case re:run(Path, Re2, [{capture, all, list}]) of
-    {match, [_, Path2]} -> {true, Path2};
-    _ -> {ok, Re3} = re:compile("[^:]+://([^/\\.]+).s3\\-[^\\.]+\\.amazonaws\\.com/(.+)"),
+    {match, [_, _, _, Path2]} -> {true, Path2};
+    _ -> {ok, Re3} = re:compile("[^:]+://([^/\\.]+).(s3|hb)\\-[^\\.]+\\.(amazonaws|bizmrg)\\.com/(.+)"),
       case re:run(Path, Re3, [{capture, all, list}]) of
-        {match, [_, Bucket, Path2]} -> {true, Path2};
+        {match, [_, Bucket, _, _, Path2]} -> {true, Path2};
         _ -> {false, Path}
       end
   end.

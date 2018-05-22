@@ -5,6 +5,7 @@
 {cloud_options, #{type => aws | openstack, name => infra}}.
 {aws_s3_bucket, ["tbconvert"]}.
 {aws_dir,"ff/"}.
+{aws_endpoint_url, "" }.
 {pg_host,"127.0.0.1"}.
 {pg_db,"fyler"}.
 {pg_user,"fyler"}.
