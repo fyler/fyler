@@ -512,17 +512,32 @@ rebuild_tasks([{Url, Type, Options, Id}=T|Tasks], #state{aws_dir = AwsDir} = Sta
 %%% @doc
 %%% @end
 
+parse_endpoint_url() ->
+  EndpointUrl = ?Config(aws_endpoint_url, []),
+  case EndpointUrl of
+      [] -> {ok, s3, amazonaws, com};
+      _ ->
+        {ok, Re} = re:compile("[^:]+://([^/]+)\\.([^/]+)\\.([^/]+)"),
+        case re:run(EndpointUrl, Re, [{capture, all, list}]) of
+          {match, [_, Service, Host, Domain]} ->
+            {ok, Service, Host, Domain};
+          nomatch -> {error, undefined, undefined, undefined}
+        end
+    end.
+
 -spec parse_url(string()) -> {IsAws::boolean(),Bucket::string()|boolean(), Path::string(),Name::string(),Ext::string()}.
 
 parse_url(Path) ->
+  {_, Service, Host, Domain} = parse_endpoint_url(),
+
   {ok, Re} = re:compile("[^:]+://.+/([^/]+)\\.([^\\.]+)"),
   case re:run(Path, Re, [{capture, all, list}]) of
     {match, [_, Name, Ext]} ->
-      {ok, Re2} = re:compile("[^:]+://([^/]+)\\.(s3|hb)[^\\.]*\\.(amazonaws|bizmrg)\\.com/(.+)"),
+      {ok, Re2} = re:compile("[^:]+://([^/]+)\\."++ Service ++"[^\\.]*\\."++ Host ++"\\."++ Domain ++"/(.+)"),
       {IsAws, Bucket, Path2} = case re:run(Path, Re2, [{capture, all, list}]) of
         {match, [_, Bucket_, _, _, Path_]} ->
           {true, Bucket_, Path_};
-        _ -> {ok, Re3} = re:compile("[^:]+://(s3|hb)[^\\.]*\\.(amazonaws|bizmrg)\\.com/([^/]+)/(.+)"),
+        _ -> {ok, Re3} = re:compile("[^:]+://"++ Service ++"[^\\.]*\\."++ Host ++"\\."++ Domain ++"/([^/]+)/(.+)"),
           case re:run(Path, Re3, [{capture, all, list}]) of
             {match, [_, _, _, Bucket_, Path_]} ->
               {true, Bucket_, Path_};
@@ -531,18 +546,22 @@ parse_url(Path) ->
       end,
 
       case IsAws of
-        false -> {false, false, Path, Name, Ext};
-        _ -> {true, Bucket, Bucket++"/"++Path2, Name, Ext}
+        false ->
+          {false, false, Path, Name, Ext};
+        _ ->
+          {true, Bucket, Bucket++"/"++Path2, Name, Ext}
       end;
     _ ->
       false
   end.
 
 parse_url_dir(Path, Bucket) ->
-  {ok, Re2} = re:compile("[^:]+://" ++ Bucket ++ "\\.(s3|hb)\\.(amazonaws|bizmrg)\\.com/(.+)"),
+  {_, Service, Host, Domain} = parse_endpoint_url(),
+
+  {ok, Re2} = re:compile("[^:]+://" ++ Bucket ++ "\\."++ Service ++"\\."++ Host ++"\\."++ Domain ++"/(.+)"),
   case re:run(Path, Re2, [{capture, all, list}]) of
     {match, [_, _, _, Path2]} -> {true, Path2};
-    _ -> {ok, Re3} = re:compile("[^:]+://([^/\\.]+).(s3|hb)\\-[^\\.]+\\.(amazonaws|bizmrg)\\.com/(.+)"),
+    _ -> {ok, Re3} = re:compile("[^:]+://([^/\\.]+)."++ Service ++"\\-[^\\.]+\\."++ Host ++"\\."++ Domain ++"/(.+)"),
       case re:run(Path, Re3, [{capture, all, list}]) of
         {match, [_, Bucket, _, _, Path2]} -> {true, Path2};
         _ -> {false, Path}
