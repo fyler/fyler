@@ -546,10 +546,8 @@ parse_url(Path) ->
       end,
 
       case IsAws of
-        false ->
-          {false, false, Path, Name, Ext};
-        _ ->
-          {true, Bucket, Bucket++"/"++Path2, Name, Ext}
+        false -> {false, false, Path, Name, Ext};
+        _ -> {true, Bucket, Bucket++"/"++Path2, Name, Ext}
       end;
     _ ->
       false
