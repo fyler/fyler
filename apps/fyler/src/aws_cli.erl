@@ -5,7 +5,7 @@
 -include("../include/log.hrl").
 
 %% API
--export([copy_object/2, copy_object/3, copy_folder/2, copy_folder/3, dir_exists/1, instance/1, start_instance/1, stop_instance/1]).
+-export([copy_object/2, copy_object/3, copy_folder/2, copy_folder/3, dir_exists/1, instance/2, start_instance/2, stop_instance/2, ip_address_pattern/0]).
 
 
 copy_object(From,To) ->
@@ -22,14 +22,17 @@ copy_folder(From,To) ->
 copy_folder(From,To,Acl) ->
   os:cmd(io_lib:format("aws s3 sync --acl ~s ~s ~s",[access_to_acl(Acl),From,To])).
 
-instance(Id) ->
+instance(Id, _Options) ->
   os:cmd(io_lib:format("aws ec2 describe-instances --instance-id ~s", [Id])).
 
-start_instance(Id) ->
+start_instance(Id, _Options) ->
   os:cmd(io_lib:format("aws ec2 start-instances --instance-ids ~s", [Id])).
 
-stop_instance(Id) ->
+stop_instance(Id, _Options) ->
   os:cmd(io_lib:format("aws ec2 stop-instances --instance-ids ~s", [Id])).
+
+ip_address_pattern() ->
+  "\"PrivateIpAddress\": \"(?<ip>[^\"]*)\"".
 
 %% @doc
 %% Check whether s3 dir prefix exists.
