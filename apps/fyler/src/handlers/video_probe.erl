@@ -12,7 +12,7 @@ info(Path) ->
   Command = ?CMD(Path),
   ?D({"command", Command}),
   true = filelib:is_file(Path),
-  case exec_command:run_link(Command, [stdout, monitor]) of
+  case exec:run(Command, [{stdout, self()}, monitor]) of
     {error, Error} ->
       ?E(Error),
       #video_info{audio_codec = default, video_codec = default};

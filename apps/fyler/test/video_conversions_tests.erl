@@ -26,7 +26,7 @@ delete_files([File|Files]) ->
 setup_() ->
   lager:start(),
   media:start(),
-  ulitos_app:ensure_started(exec),
+  ulitos_app:ensure_started(erlexec),
   file:make_dir(?PATH("tmp")).
 
 cleanup_(_) ->
@@ -55,7 +55,7 @@ cleanup_(_) ->
     Files4 when is_list(Files4) -> delete_files(Files4);
     _ -> false
   end,
-  application:stop(exec),
+  application:stop(erlexec),
   application:stop(lager).
 
 video_mp4_test_() ->
@@ -284,7 +284,7 @@ mp3_to_ogg_t_() ->
 
 video_probe_flv_speex_t_() ->
   fun() ->
-    ?assertMatch(#video_info{audio_codec="libspeex", video_codec="h264"}, video_probe:info(?PATH("stream_1.flv")))
+    ?assertMatch(#video_info{audio_codec="speex", video_codec="h264"}, video_probe:info(?PATH("stream_1.flv")))
   end.
 
 video_probe_screen_share_t_() ->
