@@ -535,11 +535,11 @@ parse_url(Path) ->
     {match, [_, Name, Ext]} ->
       {ok, Re2} = re:compile("[^:]+://([^/]+)\\."++ Service ++"[^\\.]*\\."++ Host ++"\\."++ Domain ++"/(.+)"),
       {IsAws, Bucket, Path2} = case re:run(Path, Re2, [{capture, all, list}]) of
-        {match, [_, Bucket_, _, _, Path_]} ->
+        {match, [_, Bucket_, Path_]} ->
           {true, Bucket_, Path_};
         _ -> {ok, Re3} = re:compile("[^:]+://"++ Service ++"[^\\.]*\\."++ Host ++"\\."++ Domain ++"/([^/]+)/(.+)"),
           case re:run(Path, Re3, [{capture, all, list}]) of
-            {match, [_, _, _, Bucket_, Path_]} ->
+            {match, [_, Bucket_, Path_]} ->
               {true, Bucket_, Path_};
             _ -> {false, false, Path}
           end
@@ -558,10 +558,10 @@ parse_url_dir(Path, Bucket) ->
 
   {ok, Re2} = re:compile("[^:]+://" ++ Bucket ++ "\\."++ Service ++"\\."++ Host ++"\\."++ Domain ++"/(.+)"),
   case re:run(Path, Re2, [{capture, all, list}]) of
-    {match, [_, _, _, Path2]} -> {true, Path2};
+    {match, [_, Path2]} -> {true, Path2};
     _ -> {ok, Re3} = re:compile("[^:]+://([^/\\.]+)."++ Service ++"\\-[^\\.]+\\."++ Host ++"\\."++ Domain ++"/(.+)"),
       case re:run(Path, Re3, [{capture, all, list}]) of
-        {match, [_, Bucket, _, _, Path2]} -> {true, Path2};
+        {match, [_, Bucket, Path2]} -> {true, Path2};
         _ -> {false, Path}
       end
   end.
