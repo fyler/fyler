@@ -149,7 +149,7 @@ tasks_stats(Params) ->
   Order = binary_to_list(proplists:get_value(order,Params,<<"desc">>)),
 
   Query_ = [],
-  
+
   Query1 = case proplists:get_value(status,Params,false) of
     false -> Query_;
     Status -> Query_++["status='"++binary_to_list(Status)++"'"]
@@ -461,7 +461,7 @@ build_task(URL, Type, Options, OldId, AwsDir) ->
       ?D(Options),
 
       Callback = proplists:get_value(callback, Options, undefined),
-      TargetDir = 
+      TargetDir =
         case proplists:get_value(target_dir, Options) of
           undefined -> filename:join(AwsDir,UniqueDir);
           TargetDir_ -> case parse_url_dir(binary_to_list(TargetDir_), Bucket) of
@@ -477,7 +477,7 @@ build_task(URL, Type, Options, OldId, AwsDir) ->
       Priority_ = proplists:get_value(priority, Options, <<"low">>),
       Priority = binary_to_atom(Priority_,latin1),
 
-      Id = 
+      Id =
         case OldId of
           false ->
             {ok, 1, _, [{Id_}]} = pg_cli:equery("insert into tasks (status, file_path, task_type, url, options, priority) values ('progress', '" ++ Path ++ "', '" ++ atom_to_list(Handler) ++ "', '"++URL++"', '"++binary_to_list(fyler_utils:to_json(Options))++"', '"++atom_to_list(Priority)++"') returning id"),
@@ -512,19 +512,35 @@ rebuild_tasks([{Url, Type, Options, Id}=T|Tasks], #state{aws_dir = AwsDir} = Sta
 %%% @doc
 %%% @end
 
+parse_endpoint_url() ->
+  EndpointUrl = ?Config(aws_endpoint_url, []),
+  case EndpointUrl of
+      [] -> {ok, s3, amazonaws, com};
+      _ ->
+        {ok, Re} = re:compile("[^:]+://([^/]+)\\.([^/]+)\\.([^/]+)"),
+        case re:run(EndpointUrl, Re, [{capture, all, list}]) of
+          {match, [_, Service, Host, Domain]} ->
+            {ok, Service, Host, Domain};
+          nomatch -> {error, undefined, undefined, undefined}
+        end
+    end.
+
 -spec parse_url(string()) -> {IsAws::boolean(),Bucket::string()|boolean(), Path::string(),Name::string(),Ext::string()}.
 
 parse_url(Path) ->
+  {_, Service, Host, Domain} = parse_endpoint_url(),
+
   {ok, Re} = re:compile("[^:]+://.+/([^/]+)\\.([^\\.]+)"),
   case re:run(Path, Re, [{capture, all, list}]) of
     {match, [_, Name, Ext]} ->
-      {ok, Re2} = re:compile("[^:]+://([^/]+)\\.s3[^\\.]*\\.amazonaws\\.com/(.+)"),
-      {IsAws, Bucket,Path2} = case re:run(Path, Re2, [{capture, all, list}]) of
+      {ok, Re2} = re:compile("[^:]+://([^/]+)\\."++ Service ++"[^\\.]*\\."++ Host ++"\\."++ Domain ++"/(.+)"),
+      {IsAws, Bucket, Path2} = case re:run(Path, Re2, [{capture, all, list}]) of
         {match, [_, Bucket_, Path_]} ->
           {true, Bucket_, Path_};
-        _ -> {ok, Re3} = re:compile("[^:]+://s3[^\\.]*\\.amazonaws\\.com/([^/]+)/(.+)"),
+        _ -> {ok, Re3} = re:compile("[^:]+://"++ Service ++"[^\\.]*\\."++ Host ++"\\."++ Domain ++"/([^/]+)/(.+)"),
           case re:run(Path, Re3, [{capture, all, list}]) of
-            {match, [_, Bucket_, Path_]} -> {true, Bucket_, Path_};
+            {match, [_, Bucket_, Path_]} ->
+              {true, Bucket_, Path_};
             _ -> {false, false, Path}
           end
       end,
@@ -538,10 +554,12 @@ parse_url(Path) ->
   end.
 
 parse_url_dir(Path, Bucket) ->
-  {ok, Re2} = re:compile("[^:]+://" ++ Bucket ++ "\\.s3\\.amazonaws\\.com/(.+)"),
+  {_, Service, Host, Domain} = parse_endpoint_url(),
+
+  {ok, Re2} = re:compile("[^:]+://" ++ Bucket ++ "\\."++ Service ++"\\."++ Host ++"\\."++ Domain ++"/(.+)"),
   case re:run(Path, Re2, [{capture, all, list}]) of
     {match, [_, Path2]} -> {true, Path2};
-    _ -> {ok, Re3} = re:compile("[^:]+://([^/\\.]+).s3\\-[^\\.]+\\.amazonaws\\.com/(.+)"),
+    _ -> {ok, Re3} = re:compile("[^:]+://([^/\\.]+)."++ Service ++"\\-[^\\.]+\\."++ Host ++"\\."++ Domain ++"/(.+)"),
       case re:run(Path, Re3, [{capture, all, list}]) of
         {match, [_, Bucket, Path2]} -> {true, Path2};
         _ -> {false, Path}
@@ -568,6 +586,7 @@ path_to_test() ->
   ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/da.ta.ext")),
   ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("https://s3-eu-west-1.amazonaws.com/qwe/da.ta.ext")),
   ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3.amazonaws.com/da.ta.ext")),
+  ?assertEqual({true, "qwe", "qwe/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.hb.bizmrg.com/da.ta.ext")),
   ?assertEqual({true, "qwe", "qwe/path/to/object/da.ta.ext", "da.ta", "ext"}, parse_url("http://qwe.s3-eu-west-1.amazonaws.com/path/to/object/da.ta.ext")),
   ?assertEqual(false, parse_url("qwr/data.ext")).
 
@@ -575,6 +594,7 @@ path_to_test() ->
 dir_url_test() ->
   ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("https://devtbupload.s3.amazonaws.com/recordings/2/record_17/stream_1/", "devtbupload")),
   ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("http://devtbupload.s3-eu-west-1.amazonaws.com/recordings/2/record_17/stream_1/", "devtbupload")),
+  ?assertEqual({true, "recordings/2/record_17/stream_1/"}, parse_url_dir("https://tbtest.hb.bizmrg.com/recordings/2/record_17/stream_1/", "tbtest")),
   ?assertEqual({false, "https://2.com/record_17/stream_1/"}, parse_url_dir("https://2.com/record_17/stream_1/", "devtbupload")).
 
 
