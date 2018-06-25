@@ -3,6 +3,7 @@
 {storage_dir,"ff/"}.
 {http_port,8008}.
 {cloud_options, #{type => aws | openstack, name => infra}}.
+{allow_insecure_connection, false}.
 {aws_s3_bucket, ["tbconvert"]}.
 {aws_dir,"ff/"}.
 {aws_endpoint_url, "" }.

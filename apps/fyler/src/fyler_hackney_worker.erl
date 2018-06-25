@@ -15,13 +15,16 @@ start_link(Task, Stats) ->
 
 init_server(#task{callback = Callback} = Task, Stats) ->
   proc_lib:init_ack({ok, self()}),
+  Headers = [
+    {<<"Content-Type">>, <<"application/x-www-form-urlencoded">>}
+  ],
   Options = [
-    {<<"Content-Type">>, <<"application/x-www-form-urlencoded">>},
     {pool, default},
-    {timeout, ?TIMEOUT}
+    {timeout, ?TIMEOUT},
+    {insecure, ?Config(allow_insecure_connection, false)}
   ],
   Request = prepare_request(Task, Stats),
-  case hackney:post(Callback, Options, Request, []) of
+  case hackney:post(Callback, Headers, Request, Options) of
     {ok, Status, _, _} when Status >= 200, Status < 300 ->
       ?I({successfull_callback, Callback, Status}),
       exit(normal);
