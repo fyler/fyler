@@ -5,7 +5,7 @@ Fyler is a distributed Erlang application for handling different file processing
 
 _Server_ application behaves as queue master, load balancer and API entry point.
 
-_Pool_ applications are just pools of workers. Pools can be divided by categories. 
+_Pool_ applications are just pools of workers. Pools can be divided by categories.
 
 All _handlers_ are just wrappers for system calls.
 
@@ -29,7 +29,7 @@ Usual task lifecycle
 
 System Dependencies
 -------------
-0. Erlang >=17. 
+0. Erlang >=17.
 
 1. Postgres database.
 Use scripts/setup_db.erl script to create scheme.
@@ -38,36 +38,55 @@ Use scripts/setup_db.erl script to create scheme.
 
 3. Handlers' dependant tools (e.g. ffmpeg, gs, unoconv, swftools, pdftk, imagemagick, etc.).
 
+4. [Openstack CLI](https://docs.openstack.org/newton/user-guide/common/cli-install-openstack-command-line-clients.html) - (optional) CLI
+ for manage infrastructure with the OpenStack
+
+5. [Yandex.Cloud CLI](https://cloud.yandex.com/docs/cli/quickstart) - (optional) CLI
+ for manage infrastructure with the Yandex.Cloud
+
 Configuration
 -------------
 
-Fyler's configuration can be stored in app.config or in fyler app priv dir or in '/etc' as "fyler.config".
+Fyler's configuration can be stored in `app.config` or in fyler app priv dir or in '/etc' as `fyler.config`.
 
 ```{role, server|pool}.``` - defines the role of the node
-%% pool params
+
+**pool params**
+
 ```{server_name, fyler@domain.com}.``` - server node name for pool nodes
+
 ```{category, video|document|...}.``` - category of tasks pool can handle
+
 ```{storage_dir,"ff/"}.``` - where to place temp files
+
 ```{max_active,1}.``` - number of maximum concurrent workers
 
+**server params**
 
-%% server params
-```{http_port,8008}.```
+```{http_port,8008}.``` - Server web console port
 
 ```{aws_s3_bucket, ["tbconvert"]}.``` - List of supported AWS S3 buckets
+
 ```{aws_dir,"ff/"}.``` - AWS S3 prefix to upload
 
 ```{auth_login,"fad"}.```  - login for API access
+
 ```{auth_pass,"<passwordhash>"}.``` - password hash for API access (for now simply `md5(plain_pass)`)
 
-%%% db settings
-```{pg_host,"127.0.0.1"}.
-   {pg_db,"fyler"}.
-   {pg_user,"fyler"}.
-   {pg_pass,"fyler"}.
-   {pg_pool_size, 5}.
-   {pg_max_overflow, 10}. ```  - Postgres and poolboy config.
+```{cloud_options, #{type => aws | openstack | ya_cloud, name => infra}}.``` - cloud infrastructure
 
+**db settings**
+
+Postgres and poolboy config
+```
+{pg_host,"127.0.0.1"}.
+{pg_db,"fyler"}.
+{pg_user,"fyler"}.
+{pg_pass,"fyler"}.
+{pg_pool_size, 5}.
+{pg_max_overflow, 10}.
+
+```
 
 Vagrant+ansible
 -------------
@@ -80,7 +99,7 @@ To work with AWS you must have AWS CLI installed and configured for Fyler's user
 All AWS operation are performed using commands like ```aws s3 sync <1> <2>```.
 
 #### TODO
-* tasks priority 
+* tasks priority
 * acl support for API
 * autostart new instance when all pools are busy
 * ...
