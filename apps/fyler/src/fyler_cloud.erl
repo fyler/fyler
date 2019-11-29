@@ -10,6 +10,7 @@ cloud_handler() ->
   CloudType = maps:get(type, ?Config(cloud_options, aws)),
   case CloudType of
     openstack -> openstack_cli;
+    ya_cloud -> ya_cli;
     aws -> aws_cli;
     _ -> ?E({not_implemented, CloudType})
   end.

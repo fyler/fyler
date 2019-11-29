@@ -146,7 +146,31 @@ case "$1" in
         # Start the VM
         exec $CMD
         ;;
+    foreground)
+        # start up the release in the foreground for use by runit
+        # or in docker container
 
+        BOOTFILE=$SCRIPT
+        FOREGROUNDOPTIONS="-noinput +Bd"
+
+        # Setup beam-required vars
+        ROOTDIR=$RUNNER_BASE_DIR
+        BINDIR=$ROOTDIR/erts-$ERTS_VSN/bin
+        EMU=beam
+        PROGNAME=`echo $0 | sed 's/.*\///'`
+        CMD="$BINDIR/erlexec $SLIM_ARGS $FOREGROUNDOPTIONS -boot $RUNNER_BASE_DIR/releases/$APP_VSN/$BOOTFILE -config $RUNNER_ETC_DIR/app.config -args_file $RUNNER_ETC_DIR/vm.args -- ${1+"$@"}"
+        export EMU
+        export ROOTDIR
+        export BINDIR
+        export PROGNAME
+
+        # Dump environment info for logging purposes
+        echo "Exec: $CMD"
+        echo "Root: $ROOTDIR"
+
+        # Start the VM
+        exec $CMD
+        ;;
     *)
         echo "Usage: $SCRIPT {start|stop|restart|reboot|ping|console|console_clean|attach}"
         exit 1

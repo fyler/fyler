@@ -1,16 +1,16 @@
 {role, server}.
-{server_name, 'fyler@127.0.0.1'}.
-{storage_dir,"ff/"}.
-{http_port,8008}.
-{cloud_options, #{type => aws | openstack, name => infra}}.
+{server_name, "fyler@127.0.0.1"}.
+{storage_dir, "ff/"}.
+{http_port, 8008}.
+{cloud_options, #{type => aws | openstack | ya_cloud, name => infra}}.
 {allow_insecure_connection, false}.
 {aws_s3_bucket, ["tbconvert"]}.
-{aws_dir,"ff/"}.
-{aws_endpoint_url, "" }.
-{pg_host,"127.0.0.1"}.
-{pg_db,"fyler"}.
-{pg_user,"fyler"}.
-{pg_pass,"fyler"}.
+{aws_dir, "ff/"}.
+{aws_endpoint_url, ""}.
+{pg_host, "127.0.0.1"}.
+{pg_db, "fyler"}.
+{pg_user, "fyler"}.
+{pg_pass, "fyler"}.
 {pg_pool_size, 5}.
 {pg_max_overflow, 10}.
 {video, #{priorities => #{high => 1, low => 3}, instances => []}.
